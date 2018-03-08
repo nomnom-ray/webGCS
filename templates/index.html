@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WEBGCS</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js" type= "text/javascript"></script>
+    <link rel="stylesheet" href="templates/index.css">
+    <script src="templates/index.js"></script>
+</head>
+<body>
+    <div id="header">
+        <b>Please mark the 4 corners of a parking spot</b>
+    </div>
+    <canvas id="viewportBottom" width="600" height="600" onclick="draw(event)"></canvas>
+    <form id="form" name="form">
+        <div class="pixelXY">
+                <div>
+                    <input type="submit" id="button" value="Send"> 
+                </div>
+            <div id="pixels">        
+                Pixel X = <span id="form_x"></span> <br>
+                Pixel Y = <span id="form_y"></span>
+            </div>
+        </div>
+    </form>
+    <div id="log"></div>
+</body>
+</html>
+
+
+<!-- conn = new WebSocket("ws://localhost:8080/ws"); -->
+<!-- conn.addEventListener('message', function(e){console.log(JSON.parse(e.data));}); -->
+<!-- conn.send(JSON.stringify({name: "test-start", number: 42, message: "test-end"})) -->
