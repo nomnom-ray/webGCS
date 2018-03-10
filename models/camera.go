@@ -47,7 +47,7 @@ var (
 // CameraModel combines camera and projection parameters to create a single matrix
 func CameraModel(maxVert float64, cameraLocation *MapVector) fauxgl.Matrix {
 
-	cameraRotationLR := float64(-115) - 90 + 0.2          //-ve rotates camera clockwise in degrees
+	cameraRotationLR := float64(-205) - 90 + 0.2          //-ve rotates camera clockwise in degrees
 	cameraRotationUD := float64(-10.0)                    //-ve rotates camera downwards in degrees
 	cameraX := float64(cameraLocation.VertX)              //-ve pans camera to the right
 	cameraZ := float64(cameraLocation.VertZ)              //-ve pans camera to the back

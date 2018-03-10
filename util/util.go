@@ -44,3 +44,7 @@ func Round(f float64) int {
 	}
 	return int(f + math.Copysign(0.5, f))
 }
+
+func RoundToF7(f float64) float64 {
+	return math.Round(f*10000000) / 10000000
+}

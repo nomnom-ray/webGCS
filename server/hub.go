@@ -8,6 +8,8 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/kr/pretty"
+	"github.com/nomnom-ray/webGCS/models"
+	"github.com/nomnom-ray/webGCS/util"
 )
 
 //Hub defines what the connections are doing
@@ -17,7 +19,7 @@ type Hub struct {
 	// Registered connections.
 	connections map[*Connection]struct{}
 	// Inbound messages from the connections.
-	broadcast chan MessageProcessed
+	broadcast chan models.MessageProcessed
 	process   chan Message
 }
 
@@ -26,7 +28,7 @@ func NewHub() *Hub {
 	h := &Hub{
 		connectionsMx: sync.RWMutex{},
 		connections:   make(map[*Connection]struct{}),
-		broadcast:     make(chan MessageProcessed),
+		broadcast:     make(chan models.MessageProcessed),
 		process:       make(chan Message),
 	}
 
@@ -75,11 +77,14 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c := &Connection{send: make(chan MessageProcessed), h: h}
+	c := &Connection{send: make(chan models.MessageProcessed), h: h}
 	c.h.addConnection(c)
 	defer c.h.removeConnection(c)
 
-	c.syncToDatabase(wsConn)
+	err = c.syncToDatabase(wsConn)
+	if err != nil {
+		util.InternalServerError(err, wsConn)
+	}
 
 	var wg sync.WaitGroup
 	wg.Add(2)

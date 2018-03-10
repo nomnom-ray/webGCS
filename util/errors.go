@@ -2,6 +2,7 @@ package util
 
 import (
 	"log"
+	"net/http"
 
 	"github.com/gorilla/websocket"
 )
@@ -17,6 +18,11 @@ func InternalServerError(err error, wsConn *websocket.Conn) {
 			return
 		}
 	}
+}
+
+func InternalServerErrorHTTP(w http.ResponseWriter) {
+	w.WriteHeader(http.StatusInternalServerError)
+	w.Write([]byte("internal server error"))
 }
 
 func CheckError(message string, err error) {

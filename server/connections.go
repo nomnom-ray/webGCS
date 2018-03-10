@@ -3,7 +3,6 @@ package server
 import (
 	"bufio"
 	"encoding/csv"
-	"fmt"
 	"io"
 	"log"
 	"os"
@@ -17,37 +16,30 @@ import (
 )
 
 type Message struct {
-	PixelX1 int64 `json:"pixelX1"`
-	PixelY1 int64 `json:"pixelY1"`
-}
-
-type MessageProcessed struct {
-	Messageprocessed string `json:"messageprocessed"`
+	lot *models.LotRaster
 }
 
 type Connection struct {
 	// unBuffered channel of outbound messages.
-	send chan MessageProcessed
+	send chan models.MessageProcessed
 	// The hub.
 	h *Hub
 }
 
 func (c *Connection) reader(wg *sync.WaitGroup, wsConn *websocket.Conn) {
 	defer wg.Done()
-
 	//read message from clients
 	for {
 		var message Message
-		err := wsConn.ReadJSON(&message)
+		err := wsConn.ReadJSON(&message.lot)
 		if err != nil {
 			break
 		}
-		var messageProcessed MessageProcessed
-		messageProcessed.Messageprocessed = processing(message)
-		err = PostNewFeatures(messageProcessed)
+		messageProcessed, err := processing(message)
 		if err != nil {
 			return
 		}
+
 		c.h.broadcast <- messageProcessed
 	}
 }
@@ -62,7 +54,42 @@ func (c *Connection) writer(wg *sync.WaitGroup, wsConn *websocket.Conn) {
 	}
 }
 
-func processing(message Message) string {
+func processing(message Message) (models.MessageProcessed, error) {
+
+	var messageRX [][]int64
+	var messageProcessed models.MessageProcessed
+	var lot2client []models.MessageProcessedLot
+
+	if message.lot.LotX1 == 0 {
+		messageRX = [][]int64{
+			{message.lot.LotX0, message.lot.LotY0},
+		}
+		messageProcessed.MessageprocessedType = 0
+	} else {
+		messageRX = [][]int64{
+			{message.lot.LotX0, message.lot.LotY0},
+			{message.lot.LotX1, message.lot.LotY1},
+			{message.lot.LotX2, message.lot.LotY2},
+			{message.lot.LotX3, message.lot.LotY3},
+		}
+		messageProcessed.MessageprocessedType = 1
+	}
+	for _, message := range messageRX {
+		lot2client = append(lot2client, camera(message))
+	}
+	messageProcessed.Lot2Client = lot2client
+
+	if len(lot2client) == 4 {
+		err := PostNewFeatures(messageProcessed)
+		if err != nil {
+			return messageProcessed, err
+		}
+	}
+
+	return messageProcessed, nil
+}
+
+func camera(message []int64) models.MessageProcessedLot {
 
 	clientsFile, err := os.Open("resultNormModelProperties.csv")
 	if err != nil {
@@ -100,50 +127,66 @@ func processing(message Message) string {
 		Elevation:  cameraElevation,
 	}
 	cameraLocation = models.NormCameraLocation(cameraLocation)
-	var messageString string
 	cameraPerspective := models.CameraModel(maxVert, cameraLocation)
 	//3D-2D conversion
 	triangles, primitiveOnScreen := models.Projection(maxVert, cameraPerspective)
 
-	if primitiveSelected, vertexSelected, ok := models.RasterPicking(int(message.PixelX1), int(message.PixelY1), triangles, primitiveOnScreen, cameraPerspective); ok {
+	//TODO:check: picked vertex put into mapvector; replace with interface?
+
+	var lotCoordinates models.MapVector
+	var lotRaster []int64
+
+	if primitiveSelected, vertexSelected, ok := models.RasterPicking(int(message[0]), int(message[1]), triangles, primitiveOnScreen, cameraPerspective); ok {
 		pretty.Println(primitiveSelected)
 		pretty.Println(vertexSelected)
-		messageString = fmt.Sprintf("%s%d%s%d%s%.7f%s%.7f%s%.7f",
-			"Pixel raster: X: ", int(message.PixelX1), "  Y:", int(message.PixelY1),
-			" <===> Pixel GCS: Latitude:", vertexSelected.Texture.X, "  Elevation:", vertexSelected.Texture.Y, "  Lontitude:", vertexSelected.Texture.Z)
+
+		lotCoordinates.VertX = util.RoundToF7(vertexSelected.Position.X)
+		lotCoordinates.VertY = util.RoundToF7(vertexSelected.Position.Y)
+		lotCoordinates.VertZ = util.RoundToF7(vertexSelected.Position.Z)
+		lotCoordinates.Latitude = util.RoundToF7(vertexSelected.Texture.X)
+		lotCoordinates.Elevation = util.RoundToF7(vertexSelected.Texture.Y)
+		lotCoordinates.Longtitude = util.RoundToF7(vertexSelected.Texture.Z)
+		lotRaster = []int64{message[0], message[1]}
 
 	} else {
 		pretty.Println("picking: primitive not selected.")
-		messageString = "picking: primitive not selected."
+
 	}
 
-	return messageString
+	lot2clients := models.MessageProcessedLot{MessageOriginal: lotRaster, Messageprocessed: lotCoordinates}
+
+	return lot2clients
 }
 
-func (c *Connection) syncToDatabase(wsConn *websocket.Conn) {
+func (c *Connection) syncToDatabase(wsConn *websocket.Conn) error {
 
-	var messageProcessed MessageProcessed
+	var messageProcessed models.MessageProcessed
 	lotParkings, err := models.GetGlobalLotParkings()
 	if err != nil {
 		util.InternalServerError(err, wsConn)
-		return
+		return err
 	}
 	for _, lotParking := range lotParkings {
-		messageProcessed.Messageprocessed = lotParking.GetLotSpace()
+		messageProcessed, err = lotParking.GetLotSpace()
+		if err != nil {
+			return err
+		}
+
 		c.h.connectionsMx.RLock()
 		err = wsConn.WriteJSON(messageProcessed)
 		if err != nil {
+			util.InternalServerError(err, wsConn)
 			break
 		}
 		c.h.connectionsMx.RUnlock()
 	}
-
+	return nil
 }
 
 //PostNewFeatures pushes primitive types to the model for storing in redis
-func PostNewFeatures(messageProcessed MessageProcessed) error {
+func PostNewFeatures(messageProcessed models.MessageProcessed) error {
 
-	lot := messageProcessed.Messageprocessed
+	lot := messageProcessed
 	_, err := models.NewLotParking(lot)
 	return err
 }
