@@ -21,15 +21,18 @@ type Hub struct {
 	// Inbound messages from the connections.
 	broadcast chan models.MessageProcessed
 	process   chan Message
+
+	projectedTile *models.ProjectedTiles
 }
 
 //NewHub creates hub instances for connections
-func NewHub() *Hub {
+func NewHub(projectedTile *models.ProjectedTiles) *Hub {
 	h := &Hub{
 		connectionsMx: sync.RWMutex{},
 		connections:   make(map[*Connection]struct{}),
 		broadcast:     make(chan models.MessageProcessed),
 		process:       make(chan Message),
+		projectedTile: projectedTile,
 	}
 
 	go func() {
@@ -89,7 +92,7 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go c.writer(&wg, wsConn)
-	go c.reader(&wg, wsConn)
+	go c.reader(&wg, wsConn, h.projectedTile)
 	wg.Wait()
 	wsConn.Close()
 }

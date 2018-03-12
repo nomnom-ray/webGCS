@@ -1,16 +1,10 @@
 package server
 
 import (
-	"bufio"
-	"encoding/csv"
-	"io"
-	"log"
-	"os"
-	"strconv"
+	"errors"
 	"sync"
 
 	"github.com/gorilla/websocket"
-	"github.com/kr/pretty"
 	"github.com/nomnom-ray/webGCS/models"
 	"github.com/nomnom-ray/webGCS/util"
 )
@@ -26,7 +20,7 @@ type Connection struct {
 	h *Hub
 }
 
-func (c *Connection) reader(wg *sync.WaitGroup, wsConn *websocket.Conn) {
+func (c *Connection) reader(wg *sync.WaitGroup, wsConn *websocket.Conn, projectedTile *models.ProjectedTiles) {
 	defer wg.Done()
 	//read message from clients
 	for {
@@ -35,7 +29,7 @@ func (c *Connection) reader(wg *sync.WaitGroup, wsConn *websocket.Conn) {
 		if err != nil {
 			break
 		}
-		messageProcessed, err := processing(message)
+		messageProcessed, err := processing(message, projectedTile)
 		if err != nil {
 			return
 		}
@@ -54,11 +48,11 @@ func (c *Connection) writer(wg *sync.WaitGroup, wsConn *websocket.Conn) {
 	}
 }
 
-func processing(message Message) (models.MessageProcessed, error) {
+func processing(message Message, projectedTile *models.ProjectedTiles) (models.MessageProcessed, error) {
 
 	var messageRX [][]int64
 	var messageProcessed models.MessageProcessed
-	var lot2client []models.MessageProcessedLot
+	var lots2Client []models.MessageProcessedLot
 
 	if message.lot.LotX1 == 0 {
 		messageRX = [][]int64{
@@ -74,12 +68,21 @@ func processing(message Message) (models.MessageProcessed, error) {
 		}
 		messageProcessed.MessageprocessedType = 1
 	}
-	for _, message := range messageRX {
-		lot2client = append(lot2client, camera(message))
-	}
-	messageProcessed.Lot2Client = lot2client
 
-	if len(lot2client) == 4 {
+	for _, message := range messageRX {
+
+		//TODO: ok condition here for camera(); ok from whether primitive is selected
+		lot2Client, err := camera(message, projectedTile)
+		if err != nil {
+			// fmt.Print(err)
+			messageProcessed.MessageprocessedType = 9
+		}
+
+		lots2Client = append(lots2Client, lot2Client)
+	}
+	messageProcessed.Lots2Client = lots2Client
+
+	if len(lots2Client) == 4 {
 		err := PostNewFeatures(messageProcessed)
 		if err != nil {
 			return messageProcessed, err
@@ -89,56 +92,17 @@ func processing(message Message) (models.MessageProcessed, error) {
 	return messageProcessed, nil
 }
 
-func camera(message []int64) models.MessageProcessedLot {
-
-	clientsFile, err := os.Open("resultNormModelProperties.csv")
-	if err != nil {
-		panic(err)
-	}
-	defer clientsFile.Close()
-
-	propertiesReader := csv.NewReader(bufio.NewReader(clientsFile))
-
-	var maxVert float64
-
-	for i := 0; i < 7; i++ {
-		property, error := propertiesReader.Read()
-		if error == io.EOF {
-			break
-		} else if error != nil {
-			log.Fatal(error)
-		}
-		maxVert, err = strconv.ParseFloat(property[3], 64)
-		if err != nil {
-			panic(err)
-		}
-	}
-
-	//find camera location in GCS
-	cameraLatitude := 43.4516288
-	cameraLongtitude := -80.4961367
-	cameraElevation := 0.0000113308
-	cameraLocation := &models.MapVector{
-		VertX:      0,
-		VertY:      0,
-		VertZ:      0,
-		Latitude:   cameraLatitude,
-		Longtitude: cameraLongtitude,
-		Elevation:  cameraElevation,
-	}
-	cameraLocation = models.NormCameraLocation(cameraLocation)
-	cameraPerspective := models.CameraModel(maxVert, cameraLocation)
-	//3D-2D conversion
-	triangles, primitiveOnScreen := models.Projection(maxVert, cameraPerspective)
+func camera(message []int64, projectedTile *models.ProjectedTiles) (models.MessageProcessedLot, error) {
 
 	//TODO:check: picked vertex put into mapvector; replace with interface?
 
 	var lotCoordinates models.MapVector
 	var lotRaster []int64
+	var lot2Client models.MessageProcessedLot
 
-	if primitiveSelected, vertexSelected, ok := models.RasterPicking(int(message[0]), int(message[1]), triangles, primitiveOnScreen, cameraPerspective); ok {
-		pretty.Println(primitiveSelected)
-		pretty.Println(vertexSelected)
+	if _, vertexSelected, ok := projectedTile.RasterPicking(int(message[0]), int(message[1])); ok {
+		// pretty.Println(primitiveSelected)
+		// pretty.Println(vertexSelected)
 
 		lotCoordinates.VertX = util.RoundToF7(vertexSelected.Position.X)
 		lotCoordinates.VertY = util.RoundToF7(vertexSelected.Position.Y)
@@ -147,15 +111,16 @@ func camera(message []int64) models.MessageProcessedLot {
 		lotCoordinates.Elevation = util.RoundToF7(vertexSelected.Texture.Y)
 		lotCoordinates.Longtitude = util.RoundToF7(vertexSelected.Texture.Z)
 		lotRaster = []int64{message[0], message[1]}
+		lot2Client = models.MessageProcessedLot{MessageOriginal: lotRaster, Messageprocessed: lotCoordinates}
 
 	} else {
-		pretty.Println("picking: primitive not selected.")
-
+		err := errors.New("picking: primitive not selected")
+		if err != nil {
+			return lot2Client, err
+		}
 	}
 
-	lot2clients := models.MessageProcessedLot{MessageOriginal: lotRaster, Messageprocessed: lotCoordinates}
-
-	return lot2clients
+	return lot2Client, nil
 }
 
 func (c *Connection) syncToDatabase(wsConn *websocket.Conn) error {

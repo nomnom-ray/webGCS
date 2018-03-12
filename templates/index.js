@@ -99,8 +99,7 @@ $(document).ready(function() {
                            JSON.stringify(msgProcessed.Longtitude).concat(" ,Elevation: "+
                            JSON.stringify(msgProcessed.Elevation)))));
 
-            }else if(msgType==1)
-            {
+            }else if(msgType==1){
                 for (i = 0; i < msgServer.lot2client.length; i++){
                     msgOriginal = msgServer.lot2client[i].messageprocessedoriginal;
                     msgProcessed = msgServer.lot2client[i].messageprocessedvectors;
@@ -114,6 +113,8 @@ $(document).ready(function() {
                 infoLots.push(infoLot);
                 drawLots(msgOriginal1DArray,featureIDLot,infoLots[featureIDLot]);
                 featureIDLot++;
+            } else if(msgType==9){
+                appendLog($("<div><b>Please Click within the vertex map.<\/b><\/div>"));
             }
 
             make_base();
@@ -193,7 +194,7 @@ $(document).ready(function() {
         closed : closeLot
       });
 
-    polyLot.on('click', function () {
+    polyLot.on('mouseover', function () {
 
     appendLog($("<div/>").text("> Coordinates of Lot Corners: "));
     appendLog($("<div/>").text(" Point 1 <==> Latitude: "+

@@ -14,10 +14,12 @@ import (
 func main() {
 
 	models.InitRedis()
+	tile := models.InitTiles()
+	projectedTile := tile.InitProjectedTiles()
 
 	util.LoadTemplates("templates/*.html")
 
-	h := server.NewHub()
+	h := server.NewHub(projectedTile)
 	r := router.LoadRoutes(h)
 
 	http.Handle("/", r) //use the mux router as the default handler

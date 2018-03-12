@@ -24,7 +24,7 @@ type LotRaster struct {
 
 type MessageProcessed struct {
 	MessageprocessedType int                   `json:"messageprocessedtype"`
-	Lot2Client           []MessageProcessedLot `json:"lot2client"`
+	Lots2Client          []MessageProcessedLot `json:"lot2client"`
 }
 
 type MessageProcessedLot struct {
