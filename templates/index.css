@@ -64,3 +64,12 @@ cursor: pointer;
 position: absolute;
 left:65px; 
 }
+
+#googleMaps {
+    height: 100%;
+  }
+  html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }

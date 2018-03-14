@@ -34,18 +34,30 @@ type MessageProcessedLot struct {
 
 //NewLotParking constructor FUNCTION of Update struct
 func NewLotParking(lotParking MessageProcessed) (*LotParking, error) {
-	id, err := Client.Incr("lotparking:next-id").Result() //assign id to assignment to redis
+	id, err := client.Incr("lotparking:next-id").Result() //assign id to assignment to redis
 	if err != nil {
 		return nil, err
 	}
 	key := fmt.Sprintf("lotparking:%d", id)
+
+	//TODO:tile38 test
+	//All Tile38 commands should use redis.NewStringCmd(...args) to orgnize parameters,
+	//then, use Process() to request result ,and get result by using Result().
+	// cmd := redis.NewStringCmd("SET", "fleet", "truck", "POINT", 33.32, 115.423)
+	// tileClient.Process(cmd)
+	// v, _ := cmd.Result()
+	// log.Println(v)
+	// cmd1 := redis.NewStringCmd("GET", "fleet", "truck")
+	// tileClient.Process(cmd1)
+	// v1, _ := cmd1.Result()
+	// log.Println(v1)
 
 	lotParkingBin, err := lotParking.MarshalBinary()
 	if err != nil {
 		return nil, err
 	}
 
-	pipe := Client.Pipeline()
+	pipe := client.Pipeline()
 	pipe.HSet(key, "id", id)
 	pipe.HSet(key, "lotparking", lotParkingBin)
 	pipe.RPush("lotparkinglist", id)
@@ -60,7 +72,7 @@ func NewLotParking(lotParking MessageProcessed) (*LotParking, error) {
 
 // queryUpdates is a helper function to get updates
 func queryLotParkings(key string) ([]*LotParking, error) {
-	LotParkingIDs, err := Client.LRange(key, 0, -1).Result()
+	LotParkingIDs, err := client.LRange(key, 0, -1).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +109,7 @@ func (l *LotParking) GetLotSpace() (MessageProcessed, error) {
 	key := fmt.Sprintf("lotparking:%d", l.FeatureID)
 
 	var lotParking MessageProcessed
-	cachedLotParkingBin, err := Client.HGet(key, "lotparking").Result()
+	cachedLotParkingBin, err := client.HGet(key, "lotparking").Result()
 	if err != nil {
 		return lotParking, err
 	}

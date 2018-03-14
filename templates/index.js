@@ -1,47 +1,83 @@
-$(document).ready(function() { 
+var conn;
+var pixelX = [];
+var pixelY = [];
+var drawCounter = 0;
+var width = 600;
+var height = 600;
+var layer = new Konva.Layer();
+var drawLine = [];
+var polyLot =[];
+var infoLots =[];
+var featureIDLot =0;
 
-    var conn;
-    var log = $("#log");
-    var pixelX = [];
-    var pixelY = [];
-    var drawCounter = 0;
-    var width = 600;
-    var height = 600;
-    var layer = new Konva.Layer();
-    var drawLine = [];
-    var polyLot =[];
-    var infoLots =[];
-    var featureIDLot =0;
+var mapG;
+function initMap() {
+    mapG = new google.maps.Map(document.getElementById('googleMaps'), {
+    center: {lat: 43.451791, lng: -80.496825},
+    // mapTypeId: 'satellite',
+    zoom: 18
+  });
+
+}
+
+function drawMapLots(mapG,featureIDLot){
+
+    for (i = 0; i < featureIDLot; i++){
+        var mapLotsCoor = [
+            {lat: infoLots[i][0], lng:  infoLots[i][1]}, // north west
+            {lat: infoLots[i][2], lng:  infoLots[i][3]}, // south west
+            {lat: infoLots[i][4], lng:  infoLots[i][5]}, // south east
+            {lat: infoLots[i][6], lng: infoLots[i][7]}  // north east
+        ];
+        // mapG.data.add({geometry: new google.maps.Data.Polygon([mapLotsCoor])});
+
+        var mapLots = new google.maps.Polygon({
+            paths: mapLotsCoor,
+            strokeColor: '#FF0000',
+            strokeOpacity: 0.8,
+            strokeWeight: 3,
+            fillColor: '#FF0000',
+            fillOpacity: 0.35
+          });
+          mapLots.setMap(mapG);
+
+        }
+}
+
+
+ 
+
+    var log = document.getElementById('log');
     var stage = new Konva.Stage({
       container: 'viewportTop',
       width: width,
       height: height
     });
 
-    appendLog($("<div><b>Please mark the 4 corners of a parking spot and send.<\/b><\/div>"));
+    appendLog("<div><b>Please mark the 4 corners of a parking spot and send.</b></div>");
     make_base();
-    $(window).focus(function() {
-        make_base();
-        var pixelX = [];
-        var pixelY = [];
-        var drawCounter = 0;
+    // $(window).focus(function() {
+    //     make_base();
+    //     var pixelX = [];
+    //     var pixelY = [];
+    //     var drawCounter = 0;
 
-    });
+    // });
     function appendLog(message) {
-        var d = log[0];
+        var d = log;
         var doScroll = d.scrollTop == d.scrollHeight - d.clientHeight;
-        message.appendTo(log);
+        log.innerHTML += message;
         if (doScroll) {
             d.scrollTop = d.scrollHeight - d.clientHeight;
         }
     }
 
-    $("#form").submit(function() {
+    document.getElementById('form').onsubmit = function() {
         if (!pixelX[0] || !pixelX[0]) {
             return false;
         }
         if (pixelX.length == 2 || pixelX.length == 3) {
-            appendLog($("<div><b>Please either mark 1 or 4 points.<\/b><\/div>"));
+            appendLog("<div><b>Please either mark 1 or 4 points.</b></div>");
             pixelX = [];
             pixelY = [];
             document.getElementById("form_x").innerHTML = pixelX;
@@ -73,7 +109,9 @@ $(document).ready(function() {
         }
         conn.send(message4Server);
         return false;
-    });
+    };
+
+
 
     if (window.WebSocket) {
         conn = new WebSocket("ws://localhost:8080/ws");
@@ -92,12 +130,12 @@ $(document).ready(function() {
             if (msgType==0){
                 msgOriginal = msgServer.lot2client[0].messageprocessedoriginal;
                 msgProcessed = msgServer.lot2client[0].messageprocessedvectors;
-                   appendLog($("<div/>").text(">  Pixel Coor: "+
-                       JSON.stringify(msgOriginal)));
-                    appendLog($("<div/>").text(" Latitude: "+
-                           JSON.stringify(msgProcessed.Latitude).concat(" ,Longtitude: "+
-                           JSON.stringify(msgProcessed.Longtitude).concat(" ,Elevation: "+
-                           JSON.stringify(msgProcessed.Elevation)))));
+                   appendLog("<div>> Pixel Coor: "+
+                       JSON.stringify(msgOriginal) +
+                      " Latitude: "+
+                           JSON.stringify(msgProcessed.Latitude) + ", Longtitude: "+
+                           JSON.stringify(msgProcessed.Longtitude) + ", Elevation: "+
+                           JSON.stringify(msgProcessed.Elevation + '</div>'));
 
             }else if(msgType==1){
                 for (i = 0; i < msgServer.lot2client.length; i++){
@@ -114,17 +152,18 @@ $(document).ready(function() {
                 drawLots(msgOriginal1DArray,featureIDLot,infoLots[featureIDLot]);
                 featureIDLot++;
             } else if(msgType==9){
-                appendLog($("<div><b>Please Click within the vertex map.<\/b><\/div>"));
+                appendLog("<div><b>Please Click within the vertex map.</b></div>");
             }
 
             make_base();
+            drawMapLots(mapG,featureIDLot);
         });
 
         conn.onclose = function(evt) {
-            appendLog($("<div><b>Connection closed.<\/b><\/div>"));
+            appendLog("<div><b>Connection closed.</b></div>");
         };
     } else {
-        appendLog($("<div><b>Your browser does not support WebSockets.<\/b><\/div>"));
+        appendLog("<div><b>Your browser does not support WebSockets.</b></div>");
     }
     
     function make_base() {
@@ -138,11 +177,10 @@ $(document).ready(function() {
         };
     }
 
-    $("#viewportTop").click(function(e){
+    document.getElementById("viewportTop").onclick = function(e){
  
-        var parentOffset = $(this).offset(); 
-        var relX = e.pageX - parentOffset.left;
-        var relY = e.pageY - parentOffset.top;
+        var relX = e.clientX;
+        var relY = e.clientY;
         
         
         if (drawCounter <4){
@@ -161,10 +199,10 @@ $(document).ready(function() {
 
         }
         else{
-            appendLog($("<div>Please send the pixel array for processing.<\/div>"));
+            appendLog("<div><b>Please send the pixel array for processing.</b></div>");
             drawLine = [];
         }
-     });
+     };
 
 
     function drawClick(relX,relY) {
@@ -194,25 +232,22 @@ $(document).ready(function() {
         closed : closeLot
       });
 
-    polyLot.on('mouseover', function () {
+    polyLot.on('click', function () {
 
-    appendLog($("<div/>").text("> Coordinates of Lot Corners: "));
-    appendLog($("<div/>").text(" Point 1 <==> Latitude: "+
-        JSON.stringify(infoLot[0]).concat(" ,Longtitude: "+
-        JSON.stringify(infoLot[1]))));
-    appendLog($("<div/>").text(" Point 2 <==> Latitude: "+
-        JSON.stringify(infoLot[2]).concat(" ,Longtitude: "+
-        JSON.stringify(infoLot[3]))));
-    appendLog($("<div/>").text(" Point 3 <==> Latitude: "+
-        JSON.stringify(infoLot[4]).concat(" ,Longtitude: "+
-        JSON.stringify(infoLot[5]))));
-    appendLog($("<div/>").text(" Point 4 <==> Latitude: "+
-        JSON.stringify(infoLot[6]).concat(" ,Longtitude: "+
-        JSON.stringify(infoLot[7]))));
-
+    appendLog("<div>> Latitude: "+
+       JSON.stringify(infoLot[0]) + ", Longtitude: "+
+       JSON.stringify(infoLot[1]) + '</div>');
+    appendLog("<div>> Latitude: "+
+       JSON.stringify(infoLot[2]) + ", Longtitude: "+
+       JSON.stringify(infoLot[3]) + '</div>');
+    appendLog("<div>> Latitude: "+
+       JSON.stringify(infoLot[4]) + ", Longtitude: "+
+       JSON.stringify(infoLot[5]) + '</div>');
+    appendLog("<div>> Latitude: "+
+       JSON.stringify(infoLot[6]) + ", Longtitude: "+
+       JSON.stringify(infoLot[7]) + '</div>');
     });
 
     layer.add(polyLot);
     stage.add(layer);
     }
-});
