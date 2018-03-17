@@ -11,17 +11,37 @@ type LotParking struct {
 	FeatureID int64
 }
 
-type LotRaster struct {
-	LotX0 int64 `json:"lotX0"`
-	LotY0 int64 `json:"lotY0"`
-	LotX1 int64 `json:"lotX1"`
-	LotY1 int64 `json:"lotY1"`
-	LotX2 int64 `json:"lotX2"`
-	LotY2 int64 `json:"lotY2"`
-	LotX3 int64 `json:"lotX3"`
-	LotY3 int64 `json:"lotY3"`
+type GeojsonFeatures struct {
+	FeatureType string          `json:"type"`
+	Property    GjsonProperties `json:"properties"`
+	Geometry    GjsonGeometry   `json:"geometry"`
 }
 
+type GjsonProperties struct {
+	AnnotationType string `json:"annotationType"`
+}
+
+type GjsonGeometry struct {
+	GeometryType string          `json:"type"`
+	Coordinates  json.RawMessage `json:"coordinates"`
+	Point        Point
+	Line         Line
+	Polygon      Polygon
+}
+
+type Point struct {
+	Vertex1Array []float64
+}
+
+type Line struct {
+	Vertex2Array [][]float64
+}
+
+type Polygon struct {
+	Vertex3Array [][][]float64
+}
+
+// Gjsn2Clnt
 type MessageProcessed struct {
 	MessageprocessedType int                   `json:"messageprocessedtype"`
 	Lots2Client          []MessageProcessedLot `json:"lot2client"`

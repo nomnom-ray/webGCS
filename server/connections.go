@@ -1,7 +1,9 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -10,7 +12,7 @@ import (
 )
 
 type Message struct {
-	lot *models.LotRaster
+	feature *models.GeojsonFeatures
 }
 
 type Connection struct {
@@ -25,16 +27,18 @@ func (c *Connection) reader(wg *sync.WaitGroup, wsConn *websocket.Conn, projecte
 	//read message from clients
 	for {
 		var message Message
-		err := wsConn.ReadJSON(&message.lot)
+		err := wsConn.ReadJSON(&message.feature)
 		if err != nil {
+			fmt.Println(err)
 			break
 		}
-		messageProcessed, err := processing(message, projectedTile)
+
+		_, err = processing(message, projectedTile)
 		if err != nil {
 			return
 		}
 
-		c.h.broadcast <- messageProcessed
+		// c.h.broadcast <- messageProcessed
 	}
 }
 
@@ -50,53 +54,58 @@ func (c *Connection) writer(wg *sync.WaitGroup, wsConn *websocket.Conn) {
 
 func processing(message Message, projectedTile *models.ProjectedTiles) (models.MessageProcessed, error) {
 
-	var messageRX [][]int64
+	g := &message.feature.Geometry
+	var err error
+	var messageRX [][]float64
+
+	switch g.GeometryType {
+	case "Point":
+		err = json.Unmarshal(g.Coordinates, &g.Point.Vertex1Array)
+		messageRX = append(messageRX, []float64{g.Point.Vertex1Array[0], g.Point.Vertex1Array[1]})
+	case "LineString":
+		err = json.Unmarshal(g.Coordinates, &g.Line.Vertex2Array)
+	case "Polygon":
+		err = json.Unmarshal(g.Coordinates, &g.Polygon.Vertex3Array)
+		for _, vertex := range g.Polygon.Vertex3Array[0] {
+			messageRX = append(messageRX, []float64{vertex[0], vertex[1]})
+		}
+	default:
+		panic("Unknown type")
+	}
+	if err != nil {
+		fmt.Printf("Failed to convert %s: %s", g.GeometryType, err)
+	}
+
 	var messageProcessed models.MessageProcessed
-	var lots2Client []models.MessageProcessedLot
 
-	if message.lot.LotX1 == 0 {
-		messageRX = [][]int64{
-			{message.lot.LotX0, message.lot.LotY0},
-		}
-		messageProcessed.MessageprocessedType = 0
-	} else {
-		messageRX = [][]int64{
-			{message.lot.LotX0, message.lot.LotY0},
-			{message.lot.LotX1, message.lot.LotY1},
-			{message.lot.LotX2, message.lot.LotY2},
-			{message.lot.LotX3, message.lot.LotY3},
-		}
-		messageProcessed.MessageprocessedType = 1
-	}
+	// for _, message := range messageRX {
 
-	for _, message := range messageRX {
+	// //TODO: ok condition here for camera(); ok from whether primitive is selected
+	// message4Client, err := camera(message, projectedTile)
+	// if err != nil {
+	// 	// fmt.Print(err)
+	// 	messageProcessed.MessageprocessedType = 9
+	// }
 
-		//TODO: ok condition here for camera(); ok from whether primitive is selected
-		lot2Client, err := camera(message, projectedTile)
-		if err != nil {
-			// fmt.Print(err)
-			messageProcessed.MessageprocessedType = 9
-		}
+	// 	lots2Client = append(lots2Client, message4Client)
+	// }
+	// messageProcessed.Lots2Client = lots2Client
 
-		lots2Client = append(lots2Client, lot2Client)
-	}
-	messageProcessed.Lots2Client = lots2Client
-
-	if len(lots2Client) == 4 {
-		err := PostNewFeatures(messageProcessed)
-		if err != nil {
-			return messageProcessed, err
-		}
-	}
+	// if len(lots2Client) == 4 {
+	// 	err := PostNewFeatures(messageProcessed)
+	// 	if err != nil {
+	// 		return messageProcessed, err
+	// 	}
+	// }
 
 	return messageProcessed, nil
 }
 
-func camera(message []int64, projectedTile *models.ProjectedTiles) (models.MessageProcessedLot, error) {
+func camera(message []float64, projectedTile *models.ProjectedTiles) (models.MessageProcessedLot, error) {
 
 	//TODO:check: picked vertex put into mapvector; replace with interface?
 
-	var lotCoordinates models.MapVector
+	var featureCoordinates models.MapVector
 	var lotRaster []int64
 	var lot2Client models.MessageProcessedLot
 
@@ -104,14 +113,15 @@ func camera(message []int64, projectedTile *models.ProjectedTiles) (models.Messa
 		// pretty.Println(primitiveSelected)
 		// pretty.Println(vertexSelected)
 
-		lotCoordinates.VertX = util.RoundToF7(vertexSelected.Position.X)
-		lotCoordinates.VertY = util.RoundToF7(vertexSelected.Position.Y)
-		lotCoordinates.VertZ = util.RoundToF7(vertexSelected.Position.Z)
-		lotCoordinates.Latitude = util.RoundToF7(vertexSelected.Texture.X)
-		lotCoordinates.Elevation = util.RoundToF7(vertexSelected.Texture.Y)
-		lotCoordinates.Longtitude = util.RoundToF7(vertexSelected.Texture.Z)
-		lotRaster = []int64{message[0], message[1]}
-		lot2Client = models.MessageProcessedLot{MessageOriginal: lotRaster, Messageprocessed: lotCoordinates}
+		featureCoordinates.VertX = util.RoundToF7(vertexSelected.Position.X)
+		featureCoordinates.VertY = util.RoundToF7(vertexSelected.Position.Y)
+		featureCoordinates.VertZ = util.RoundToF7(vertexSelected.Position.Z)
+		featureCoordinates.Latitude = util.RoundToF7(vertexSelected.Texture.X)
+		featureCoordinates.Elevation = util.RoundToF7(vertexSelected.Texture.Y)
+		featureCoordinates.Longtitude = util.RoundToF7(vertexSelected.Texture.Z)
+		lotRaster = []int64{int64(message[0]), int64(message[1])}
+
+		lot2Client = models.MessageProcessedLot{MessageOriginal: lotRaster, Messageprocessed: featureCoordinates}
 
 	} else {
 		err := errors.New("picking: primitive not selected")

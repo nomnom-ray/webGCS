@@ -1,6 +1,6 @@
 var conn;
 
-window.onbeforeunload = function() {
+window.onbeforeunload = function () {
     conn.close();
 };
 
@@ -110,18 +110,23 @@ function leafDraw(leafMaps) {
             annotationType = "LotParking";
         }
         var message4Server = createGEOJSON(geometryType, coordinates, annotationType);
-        // console.log(message4Server);       
-        
+        message4Server = JSON.stringify(message4Server);
+
+        // console.log(e.layer);
+        // for (var name in e.layer) {
+        //     if (e.layer.hasOwnProperty(name)) {
+        //         console.log(name);
+        //     }
+        //   }
+
         var sent = toServer(message4Server);
-        if (!sent){
+        if (!sent) {
             appendLog("<div><b>" + '\xa0\xa0' + "Message not sent.</b></div>");
         }
-       
-
     });
 }
 
-function toServer(message4Server){
+function toServer(message4Server) {
     if (!conn) {
         return false;
     }
@@ -132,20 +137,24 @@ function toServer(message4Server){
 function createGEOJSON(geometryType, coordinates, annotationType) {
 
     var annotation;
+    var coordinates1Array = [];
 
     if (geometryType === "Marker") {
-        annotation = turf.point([coordinates.lat, coordinates.lng], {
+        annotation = turf.point([coordinates.lng, coordinates.lat], {
             annotationType: annotationType
         });
     } else if (geometryType === "Poly") {
-    // for (i = 0; i < coordinates.length; i++) {
+        // for (i = 0; i < coordinates.length; i++) {
         var ringCloser = coordinates[0][0];
         coordinates[0].push(ringCloser);
 
-        annotation = turf.polygon([coordinates[0]], {
+        for (i = 0; i < coordinates[0].length; i++) {
+            coordinates1Array.push([coordinates[0][i].lng, coordinates[0][i].lat]);
+        }
+        annotation = turf.polygon([coordinates1Array], {
             annotationType: annotationType
-        });  
-    // }    
+        });
+        // }    
     }
     return annotation;
 }
@@ -163,5 +172,3 @@ function initMap() {
         zoom: 18
     });
 }
-
-
