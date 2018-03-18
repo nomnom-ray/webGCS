@@ -9,15 +9,17 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/nomnom-ray/webGCS/models"
 	"github.com/nomnom-ray/webGCS/util"
+	"github.com/paulmach/orb"
+	"github.com/paulmach/orb/geojson"
 )
 
-type Message struct {
+type MsgFromClient struct {
 	feature *models.GeojsonFeatures
 }
 
 type Connection struct {
 	// unBuffered channel of outbound messages.
-	send chan models.MessageProcessed
+	send chan models.Msg2Client
 	// The hub.
 	h *Hub
 }
@@ -26,13 +28,14 @@ func (c *Connection) reader(wg *sync.WaitGroup, wsConn *websocket.Conn, projecte
 	defer wg.Done()
 	//read message from clients
 	for {
-		var message Message
+		var message MsgFromClient
 		err := wsConn.ReadJSON(&message.feature)
 		if err != nil {
 			fmt.Println(err)
 			break
 		}
 
+		//TODO:place := messageProcessed here to enable webscoket
 		_, err = processing(message, projectedTile)
 		if err != nil {
 			return
@@ -52,21 +55,23 @@ func (c *Connection) writer(wg *sync.WaitGroup, wsConn *websocket.Conn) {
 	}
 }
 
-func processing(message Message, projectedTile *models.ProjectedTiles) (models.MessageProcessed, error) {
+func processing(message MsgFromClient, projectedTile *models.ProjectedTiles) (models.Msg2Client, error) {
 
+	p := &message.feature.Property
 	g := &message.feature.Geometry
 	var err error
 	var messageRX [][]float64
 
+	//TODO:take case of the panic cases to something that won't crash the program
 	switch g.GeometryType {
 	case "Point":
-		err = json.Unmarshal(g.Coordinates, &g.Point.Vertex1Array)
-		messageRX = append(messageRX, []float64{g.Point.Vertex1Array[0], g.Point.Vertex1Array[1]})
+		err = json.Unmarshal(p.PixCoordinates, &p.Point.Vertex1Array)
+		messageRX = append(messageRX, []float64{p.Point.Vertex1Array[0], p.Point.Vertex1Array[1]})
 	case "LineString":
-		err = json.Unmarshal(g.Coordinates, &g.Line.Vertex2Array)
+		err = json.Unmarshal(p.PixCoordinates, &p.Line.Vertex2Array)
 	case "Polygon":
-		err = json.Unmarshal(g.Coordinates, &g.Polygon.Vertex3Array)
-		for _, vertex := range g.Polygon.Vertex3Array[0] {
+		err = json.Unmarshal(p.PixCoordinates, &p.Polygon.Vertex3Array)
+		for _, vertex := range p.Polygon.Vertex3Array[0] {
 			messageRX = append(messageRX, []float64{vertex[0], vertex[1]})
 		}
 	default:
@@ -76,66 +81,73 @@ func processing(message Message, projectedTile *models.ProjectedTiles) (models.M
 		fmt.Printf("Failed to convert %s: %s", g.GeometryType, err)
 	}
 
-	var messageProcessed models.MessageProcessed
+	var geoCoordinates [][]float64
+	geoStatus := "no error"
+	for _, pixCoor := range messageRX {
+		geoCoordinate, err := camera(pixCoor, projectedTile)
+		if err != nil {
+			geoStatus = "no selection"
+		}
+		geoCoordinates = append(geoCoordinates, geoCoordinate)
+	}
 
-	// for _, message := range messageRX {
+	var feature2Clnts *geojson.Feature
 
-	// //TODO: ok condition here for camera(); ok from whether primitive is selected
-	// message4Client, err := camera(message, projectedTile)
-	// if err != nil {
-	// 	// fmt.Print(err)
-	// 	messageProcessed.MessageprocessedType = 9
-	// }
+	switch g.GeometryType {
+	case "Point":
+		feature2Clnts = geojson.NewFeature(orb.Point{
+			geoCoordinates[0][0], geoCoordinates[0][1]})
+		feature2Clnts.Properties["pixelCoordinates"] = p.Point
+		feature2Clnts.Properties["annotationType"] = p.AnnotationType
+		// feature2Clnts.Properties["annotationID"] = geoCoordinates
+		feature2Clnts.Properties["annotationStatus"] = geoStatus
+	case "LineString":
 
-	// 	lots2Client = append(lots2Client, message4Client)
-	// }
-	// messageProcessed.Lots2Client = lots2Client
+	case "Polygon":
 
+	default:
+		panic("Unknown type")
+	}
+	if err != nil {
+		fmt.Printf("Failed to convert %s: %s", g.GeometryType, err)
+	}
+
+	// TODO: save geojson to tile38; determine the role of redis still
 	// if len(lots2Client) == 4 {
 	// 	err := PostNewFeatures(messageProcessed)
 	// 	if err != nil {
 	// 		return messageProcessed, err
 	// 	}
-	// }
+
+	var messageProcessed models.Msg2Client
+
+	// messageProcessed.Feature = testFeature
 
 	return messageProcessed, nil
 }
 
-func camera(message []float64, projectedTile *models.ProjectedTiles) (models.MessageProcessedLot, error) {
+func camera(pixCoor []float64, projectedTile *models.ProjectedTiles) ([]float64, error) {
 
-	//TODO:check: picked vertex put into mapvector; replace with interface?
+	geoCoordinate := make([]float64, 2)
 
-	var featureCoordinates models.MapVector
-	var lotRaster []int64
-	var lot2Client models.MessageProcessedLot
-
-	if _, vertexSelected, ok := projectedTile.RasterPicking(int(message[0]), int(message[1])); ok {
-		// pretty.Println(primitiveSelected)
-		// pretty.Println(vertexSelected)
-
-		featureCoordinates.VertX = util.RoundToF7(vertexSelected.Position.X)
-		featureCoordinates.VertY = util.RoundToF7(vertexSelected.Position.Y)
-		featureCoordinates.VertZ = util.RoundToF7(vertexSelected.Position.Z)
-		featureCoordinates.Latitude = util.RoundToF7(vertexSelected.Texture.X)
-		featureCoordinates.Elevation = util.RoundToF7(vertexSelected.Texture.Y)
-		featureCoordinates.Longtitude = util.RoundToF7(vertexSelected.Texture.Z)
-		lotRaster = []int64{int64(message[0]), int64(message[1])}
-
-		lot2Client = models.MessageProcessedLot{MessageOriginal: lotRaster, Messageprocessed: featureCoordinates}
-
+	//returns primitiveSelected and vertexSelected
+	if _, vertexSelected, ok := projectedTile.RasterPicking(int(pixCoor[0]), int(pixCoor[1])); ok {
+		geoCoordinate[0] = util.RoundToF7(vertexSelected.Texture.Z)
+		geoCoordinate[1] = util.RoundToF7(vertexSelected.Texture.X)
+		// geoCoordinate.Elevation = util.RoundToF7(vertexSelected.Texture.Y)
 	} else {
 		err := errors.New("picking: primitive not selected")
 		if err != nil {
-			return lot2Client, err
+			fmt.Println(err)
+			return nil, err
 		}
 	}
-
-	return lot2Client, nil
+	return geoCoordinate, nil
 }
 
 func (c *Connection) syncToDatabase(wsConn *websocket.Conn) error {
 
-	var messageProcessed models.MessageProcessed
+	var messageProcessed models.Msg2Client
 	lotParkings, err := models.GetGlobalLotParkings()
 	if err != nil {
 		util.InternalServerError(err, wsConn)
@@ -159,7 +171,7 @@ func (c *Connection) syncToDatabase(wsConn *websocket.Conn) error {
 }
 
 //PostNewFeatures pushes primitive types to the model for storing in redis
-func PostNewFeatures(messageProcessed models.MessageProcessed) error {
+func PostNewFeatures(messageProcessed models.Msg2Client) error {
 
 	lot := messageProcessed
 	_, err := models.NewLotParking(lot)

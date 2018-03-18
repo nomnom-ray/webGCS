@@ -19,8 +19,8 @@ type Hub struct {
 	// Registered connections.
 	connections map[*Connection]struct{}
 	// Inbound messages from the connections.
-	broadcast chan models.MessageProcessed
-	process   chan Message
+	broadcast chan models.Msg2Client
+	process   chan MsgFromClient
 
 	projectedTile *models.ProjectedTiles
 }
@@ -30,8 +30,8 @@ func NewHub(projectedTile *models.ProjectedTiles) *Hub {
 	h := &Hub{
 		connectionsMx: sync.RWMutex{},
 		connections:   make(map[*Connection]struct{}),
-		broadcast:     make(chan models.MessageProcessed),
-		process:       make(chan Message),
+		broadcast:     make(chan models.Msg2Client),
+		process:       make(chan MsgFromClient),
 		projectedTile: projectedTile,
 	}
 
@@ -80,7 +80,7 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c := &Connection{send: make(chan models.MessageProcessed), h: h}
+	c := &Connection{send: make(chan models.Msg2Client), h: h}
 	c.h.addConnection(c)
 	defer c.h.removeConnection(c)
 

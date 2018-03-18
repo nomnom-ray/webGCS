@@ -14,6 +14,13 @@ if (window.WebSocket) {
     conn = new WebSocket("ws://localhost:8080/ws");
     conn.addEventListener('message', function (e) {
         var msgServer = JSON.parse(e.data);
+        if(!msgServer.features){
+            // It doesn't exist, do nothing
+        } else {
+            console.log(msgServer.features.properties.prop0[0][0]);
+        }
+
+
     });
     conn.onclose = function (evt) {
         appendLog("<div><b>" + '\xa0\xa0' + "Connection closed.</b></div>");
@@ -97,27 +104,27 @@ function leafDraw(leafMaps) {
     leafMaps.on('pm:create', function (e) {
 
         var geometryType;
-        var coordinates;
+        var pixCoordinates;
         var annotationType;
 
         if (e.shape === "Marker") {
             geometryType = e.shape;
-            coordinates = e.layer._latlng;
+            pixCoordinates = e.layer._latlng;
             annotationType = "Point";
         } else if (e.shape === "Poly") {
             geometryType = e.shape;
-            coordinates = e.layer._latlngs;
+            pixCoordinates = e.layer._latlngs;
             annotationType = "LotParking";
         }
-        var message4Server = createGEOJSON(geometryType, coordinates, annotationType);
+        var message4Server = createGEOJSON(geometryType, pixCoordinates, annotationType);
         message4Server = JSON.stringify(message4Server);
 
-        // console.log(e.layer);
-        // for (var name in e.layer) {
-        //     if (e.layer.hasOwnProperty(name)) {
-        //         console.log(name);
-        //     }
-        //   }
+        console.log(e.layer);
+        for (var name in e.layer) {
+            if (e.layer.hasOwnProperty(name)) {
+                console.log(name);
+            }
+          }
 
         var sent = toServer(message4Server);
         if (!sent) {
@@ -134,25 +141,30 @@ function toServer(message4Server) {
     return true;
 }
 
-function createGEOJSON(geometryType, coordinates, annotationType) {
+function createGEOJSON(geometryType, pixCoordinates, annotationType) {
 
     var annotation;
-    var coordinates1Array = [];
+    var pixCoordinates1Array = [];
 
     if (geometryType === "Marker") {
-        annotation = turf.point([coordinates.lng, coordinates.lat], {
-            annotationType: annotationType
-        });
+
+        var pixelCoordinates = [pixCoordinates.lng, pixCoordinates.lat]; 
+
+        annotation = turf.point([0,0], {
+            annotationType: annotationType,
+            pixelCoordinates: pixelCoordinates 
+            });
     } else if (geometryType === "Poly") {
         // for (i = 0; i < coordinates.length; i++) {
-        var ringCloser = coordinates[0][0];
-        coordinates[0].push(ringCloser);
+        var ringCloser = pixCoordinates[0][0];
+        pixCoordinates[0].push(ringCloser);
 
-        for (i = 0; i < coordinates[0].length; i++) {
-            coordinates1Array.push([coordinates[0][i].lng, coordinates[0][i].lat]);
+        for (i = 0; i < pixCoordinates[0].length; i++) {
+            pixCoordinates1Array.push([pixCoordinates[0][i].lng, pixCoordinates[0][i].lat]);
         }
-        annotation = turf.polygon([coordinates1Array], {
-            annotationType: annotationType
+        annotation = turf.polygon([[[0,0],[0,0],[0,0],[0,0]]], {
+            annotationType: annotationType,
+            pixelCoordinates: [pixCoordinates1Array]
         });
         // }    
     }

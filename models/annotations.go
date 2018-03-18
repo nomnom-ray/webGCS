@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+
+	"github.com/paulmach/orb/geojson"
 )
 
 //LotParking stores the IDs to map coordinates of Lot parking space features
@@ -18,15 +20,16 @@ type GeojsonFeatures struct {
 }
 
 type GjsonProperties struct {
-	AnnotationType string `json:"annotationType"`
+	AnnotationType string          `json:"annotationType"`
+	PixCoordinates json.RawMessage `json:"pixelCoordinates"`
+	Point          Point
+	Line           Line
+	Polygon        Polygon
 }
 
 type GjsonGeometry struct {
 	GeometryType string          `json:"type"`
 	Coordinates  json.RawMessage `json:"coordinates"`
-	Point        Point
-	Line         Line
-	Polygon      Polygon
 }
 
 type Point struct {
@@ -42,18 +45,12 @@ type Polygon struct {
 }
 
 // Gjsn2Clnt
-type MessageProcessed struct {
-	MessageprocessedType int                   `json:"messageprocessedtype"`
-	Lots2Client          []MessageProcessedLot `json:"lot2client"`
-}
-
-type MessageProcessedLot struct {
-	MessageOriginal  []int64   `json:"messageprocessedoriginal"`
-	Messageprocessed MapVector `json:"messageprocessedvectors"`
+type Msg2Client struct {
+	Feature *geojson.Feature `json:"features"`
 }
 
 //NewLotParking constructor FUNCTION of Update struct
-func NewLotParking(lotParking MessageProcessed) (*LotParking, error) {
+func NewLotParking(lotParking Msg2Client) (*LotParking, error) {
 	id, err := client.Incr("lotparking:next-id").Result() //assign id to assignment to redis
 	if err != nil {
 		return nil, err
@@ -110,12 +107,12 @@ func queryLotParkings(key string) ([]*LotParking, error) {
 }
 
 // MarshalBinary -
-func (m *MessageProcessed) MarshalBinary() ([]byte, error) {
+func (m *Msg2Client) MarshalBinary() ([]byte, error) {
 	return json.Marshal(m)
 }
 
 // UnmarshalBinary -
-func (m *MessageProcessed) UnmarshalBinary(data []byte) error {
+func (m *Msg2Client) UnmarshalBinary(data []byte) error {
 	if err := json.Unmarshal(data, &m); err != nil {
 		return err
 	}
@@ -124,11 +121,11 @@ func (m *MessageProcessed) UnmarshalBinary(data []byte) error {
 }
 
 //GetLotSpace gets the actual coordinates of the lot based on id
-func (l *LotParking) GetLotSpace() (MessageProcessed, error) {
+func (l *LotParking) GetLotSpace() (Msg2Client, error) {
 
 	key := fmt.Sprintf("lotparking:%d", l.FeatureID)
 
-	var lotParking MessageProcessed
+	var lotParking Msg2Client
 	cachedLotParkingBin, err := client.HGet(key, "lotparking").Result()
 	if err != nil {
 		return lotParking, err
