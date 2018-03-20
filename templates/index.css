@@ -53,3 +53,31 @@ body {
   stroke: #caf07f;
   stroke-width: 2;
 }
+
+#deleteButton{
+background-color: #38465b;
+border: none;
+color: white;
+padding: 8px 10px;
+text-align: center;
+text-decoration: none;
+display: inline-block;
+font-size: 16px;
+margin: 2px 1px;
+cursor: pointer;
+display: inline;
+}
+
+#navButton{
+background-color: #38465b;
+border: none;
+color: white;
+padding: 8px 10px;
+text-align: center;
+text-decoration: none;
+display: inline-block;
+font-size: 16px;
+margin: 2px 1px;
+cursor: pointer;
+display: inline;
+}

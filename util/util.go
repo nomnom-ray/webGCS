@@ -7,6 +7,8 @@ import (
 	"math"
 	"net/http"
 	"os"
+
+	uuid "github.com/satori/go.uuid"
 )
 
 const (
@@ -14,6 +16,16 @@ const (
 )
 
 var templates *template.Template
+
+// AnnotationID returns UUID for annotations; maybe upgrade to v5 based on users
+func AnnotationID() (uuid.UUID, error) {
+	randomID, err := uuid.NewV4()
+	if err != nil {
+		fmt.Printf("Something went wrong: %s", err)
+		return randomID, err
+	}
+	return randomID, nil
+}
 
 //LoadTemplates initializes template
 func LoadTemplates(htmlTemplates string) {

@@ -8,8 +8,8 @@ import (
 	"github.com/paulmach/orb/geojson"
 )
 
-//LotParking stores the IDs to map coordinates of Lot parking space features
-type LotParking struct {
+//Annotation stores the IDs to map coordinates of features
+type Annotation struct {
 	FeatureID int64
 }
 
@@ -26,36 +26,32 @@ type GjsonProperties struct {
 	Line           Line
 	Polygon        Polygon
 }
+type Point struct {
+	Vertex1Array []float64
+}
+type Line struct {
+	Vertex2Array [][]float64
+}
+type Polygon struct {
+	Vertex3Array [][][]float64
+}
 
 type GjsonGeometry struct {
 	GeometryType string          `json:"type"`
 	Coordinates  json.RawMessage `json:"coordinates"`
 }
 
-type Point struct {
-	Vertex1Array []float64
-}
-
-type Line struct {
-	Vertex2Array [][]float64
-}
-
-type Polygon struct {
-	Vertex3Array [][][]float64
-}
-
-// Gjsn2Clnt
 type Msg2Client struct {
 	Feature *geojson.Feature `json:"features"`
 }
 
-//NewLotParking constructor FUNCTION of Update struct
-func NewLotParking(lotParking Msg2Client) (*LotParking, error) {
-	id, err := client.Incr("lotparking:next-id").Result() //assign id to assignment to redis
+//NewAnnotation constructor FUNCTION of Update struct
+func NewAnnotation(annotation Msg2Client) (*Annotation, error) {
+	id, err := client.Incr("annotation:next-id").Result() //assign id to assignment to redis
 	if err != nil {
 		return nil, err
 	}
-	key := fmt.Sprintf("lotparking:%d", id)
+	key := fmt.Sprintf("annotation:%d", id)
 
 	//TODO:tile38 test
 	//All Tile38 commands should use redis.NewStringCmd(...args) to orgnize parameters,
@@ -69,41 +65,41 @@ func NewLotParking(lotParking Msg2Client) (*LotParking, error) {
 	// v1, _ := cmd1.Result()
 	// log.Println(v1)
 
-	lotParkingBin, err := lotParking.MarshalBinary()
+	annotationBin, err := annotation.MarshalBinary()
 	if err != nil {
 		return nil, err
 	}
 
 	pipe := client.Pipeline()
 	pipe.HSet(key, "id", id)
-	pipe.HSet(key, "lotparking", lotParkingBin)
-	pipe.RPush("lotparkinglist", id)
+	pipe.HSet(key, "annotation", annotationBin)
+	pipe.RPush("annotationlist", id)
 
 	_, err = pipe.Exec()
 	if err != nil {
 		return nil, err
 	}
 
-	return &LotParking{id}, nil
+	return &Annotation{id}, nil
 }
 
 // queryUpdates is a helper function to get updates
-func queryLotParkings(key string) ([]*LotParking, error) {
-	LotParkingIDs, err := client.LRange(key, 0, -1).Result()
+func queryAnnotations(key string) ([]*Annotation, error) {
+	annotationIDs, err := client.LRange(key, 0, -1).Result()
 	if err != nil {
 		return nil, err
 	}
 
-	lotParkings := make([]*LotParking, len(LotParkingIDs)) //allocate memmory for update struct by each updateID
-	for i, idString := range LotParkingIDs {
+	annotations := make([]*Annotation, len(annotationIDs)) //allocate memmory for update struct by each updateID
+	for i, idString := range annotationIDs {
 		id, err := strconv.ParseInt(idString, 10, 64)
 		if err != nil {
 			return nil, err
 		}
-		lotParkings[i] = &LotParking{id} //populate update memory space with update by key
+		annotations[i] = &Annotation{id} //populate update memory space with update by key
 	}
 
-	return lotParkings, nil
+	return annotations, nil
 }
 
 // MarshalBinary -
@@ -120,24 +116,24 @@ func (m *Msg2Client) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-//GetLotSpace gets the actual coordinates of the lot based on id
-func (l *LotParking) GetLotSpace() (Msg2Client, error) {
+//GetAnnotationCntxt gets the actual coordinates of the feature based on id
+func (l *Annotation) GetAnnotationCntxt() (Msg2Client, error) {
 
-	key := fmt.Sprintf("lotparking:%d", l.FeatureID)
+	key := fmt.Sprintf("annotation:%d", l.FeatureID)
 
-	var lotParking Msg2Client
-	cachedLotParkingBin, err := client.HGet(key, "lotparking").Result()
+	var annotation Msg2Client
+	cachedAnnotationBin, err := client.HGet(key, "annotation").Result()
 	if err != nil {
-		return lotParking, err
+		return annotation, err
 	}
-	err = lotParking.UnmarshalBinary([]byte(cachedLotParkingBin))
+	err = annotation.UnmarshalBinary([]byte(cachedAnnotationBin))
 	if err != nil {
-		return lotParking, err
+		return annotation, err
 	}
-	return lotParking, nil
+	return annotation, nil
 }
 
-//GetGlobalLotParkings gets all lots spaces in the loaded database (not user specific)
-func GetGlobalLotParkings() ([]*LotParking, error) {
-	return queryLotParkings("lotparkinglist")
+//GetGlobalAnnotations gets all features in the loaded database (not user specific)
+func GetGlobalAnnotations() ([]*Annotation, error) {
+	return queryAnnotations("annotationlist")
 }

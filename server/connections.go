@@ -35,13 +35,12 @@ func (c *Connection) reader(wg *sync.WaitGroup, wsConn *websocket.Conn, projecte
 			break
 		}
 
-		//TODO:place := messageProcessed here to enable webscoket
-		_, err = processing(message, projectedTile)
+		msg2Clients, err := processing(message, projectedTile)
 		if err != nil {
 			return
 		}
 
-		// c.h.broadcast <- messageProcessed
+		c.h.broadcast <- msg2Clients
 	}
 }
 
@@ -59,6 +58,7 @@ func processing(message MsgFromClient, projectedTile *models.ProjectedTiles) (mo
 
 	p := &message.feature.Property
 	g := &message.feature.Geometry
+	var msg2Client models.Msg2Client
 	var err error
 	var messageRX [][]float64
 
@@ -91,20 +91,39 @@ func processing(message MsgFromClient, projectedTile *models.ProjectedTiles) (mo
 		geoCoordinates = append(geoCoordinates, geoCoordinate)
 	}
 
+	annotationID, err := util.AnnotationID()
+	if err != nil {
+		return msg2Client, err
+	}
+
+	var points orb.Point
+	var lines orb.LineString
+	var rings orb.Ring
+	var polygon orb.Polygon
+	for _, geoCoordinate := range geoCoordinates {
+		points = orb.Point{geoCoordinate[0], geoCoordinate[1]}
+		lines = append(lines, points)
+		rings = orb.Ring(lines)
+	}
+	polygon = append(polygon, rings)
+
 	var feature2Clnts *geojson.Feature
 
 	switch g.GeometryType {
 	case "Point":
-		feature2Clnts = geojson.NewFeature(orb.Point{
-			geoCoordinates[0][0], geoCoordinates[0][1]})
+		feature2Clnts = geojson.NewFeature(points)
 		feature2Clnts.Properties["pixelCoordinates"] = p.Point
 		feature2Clnts.Properties["annotationType"] = p.AnnotationType
-		// feature2Clnts.Properties["annotationID"] = geoCoordinates
+		feature2Clnts.Properties["annotationID"] = annotationID
 		feature2Clnts.Properties["annotationStatus"] = geoStatus
 	case "LineString":
 
 	case "Polygon":
-
+		feature2Clnts = geojson.NewFeature(polygon)
+		feature2Clnts.Properties["pixelCoordinates"] = p.Polygon
+		feature2Clnts.Properties["annotationType"] = p.AnnotationType
+		feature2Clnts.Properties["annotationID"] = annotationID
+		feature2Clnts.Properties["annotationStatus"] = geoStatus
 	default:
 		panic("Unknown type")
 	}
@@ -114,16 +133,14 @@ func processing(message MsgFromClient, projectedTile *models.ProjectedTiles) (mo
 
 	// TODO: save geojson to tile38; determine the role of redis still
 	// if len(lots2Client) == 4 {
-	// 	err := PostNewFeatures(messageProcessed)
+	// 	err := PostNewFeatures(msg2Client)
 	// 	if err != nil {
-	// 		return messageProcessed, err
+	// 		return msg2Client, err
 	// 	}
 
-	var messageProcessed models.Msg2Client
+	msg2Client.Feature = feature2Clnts
 
-	// messageProcessed.Feature = testFeature
-
-	return messageProcessed, nil
+	return msg2Client, nil
 }
 
 func camera(pixCoor []float64, projectedTile *models.ProjectedTiles) ([]float64, error) {
@@ -147,20 +164,20 @@ func camera(pixCoor []float64, projectedTile *models.ProjectedTiles) ([]float64,
 
 func (c *Connection) syncToDatabase(wsConn *websocket.Conn) error {
 
-	var messageProcessed models.Msg2Client
-	lotParkings, err := models.GetGlobalLotParkings()
+	var msg2Client models.Msg2Client
+	annotations, err := models.GetGlobalAnnotations()
 	if err != nil {
 		util.InternalServerError(err, wsConn)
 		return err
 	}
-	for _, lotParking := range lotParkings {
-		messageProcessed, err = lotParking.GetLotSpace()
+	for _, annotation := range annotations {
+		msg2Client, err = annotation.GetAnnotationCntxt()
 		if err != nil {
 			return err
 		}
 
 		c.h.connectionsMx.RLock()
-		err = wsConn.WriteJSON(messageProcessed)
+		err = wsConn.WriteJSON(msg2Client)
 		if err != nil {
 			util.InternalServerError(err, wsConn)
 			break
@@ -171,9 +188,9 @@ func (c *Connection) syncToDatabase(wsConn *websocket.Conn) error {
 }
 
 //PostNewFeatures pushes primitive types to the model for storing in redis
-func PostNewFeatures(messageProcessed models.Msg2Client) error {
+func PostNewFeatures(msg2Client models.Msg2Client) error {
 
-	lot := messageProcessed
-	_, err := models.NewLotParking(lot)
+	msg2DB := msg2Client
+	_, err := models.NewAnnotation(msg2DB)
 	return err
 }

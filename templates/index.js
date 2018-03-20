@@ -1,27 +1,134 @@
-var conn;
+var gMaps;
+// var gDeleteAnnotation;
+function initMap() {
+    gMaps = new google.maps.Map(document.getElementById('googleMaps'), {
+         center: {
+             lat: 43.451774,
+             lng: -80.496678
+         },
+         zoom: 20,
+         streetViewControl: false,
+         fullscreenControl: false,
+         zoomControl: false,
+         rotateControl: true,
+         tilt: 45,
+         mapTypeId: 'terrain',
+         mapTypeControl: true,
+         mapTypeControlOptions: {
+             style: google.maps.MapTypeControlStyle.HORIZONTAL_BAR,
+             position: google.maps.ControlPosition.TOP_RIGHT
+         }
+     });
 
-window.onbeforeunload = function () {
-    conn.close();
-};
+     var infowindow = new google.maps.InfoWindow();
+
+     gMaps.data.setStyle({
+        fillColor: 'green',
+        fillOpacity: 0.3,
+        strokeWeight: 1,
+        strokeColor: 'orange'
+      });
+
+      var selectionToggle = false;
+      gMaps.data.addListener('click', function(e) {
+
+        gMaps.data.revertStyle();
+        
+        selectionToggle = !selectionToggle; 
+        if (selectionToggle==true){
+            
+            gMaps.data.overrideStyle(e.feature, {
+                fillColor: 'red',
+                fillOpacity: 0.3,
+                strokeWeight: 1,
+                strokeColor: 'orange'
+            });
+            gDeleteAnnotation = e.feature;
+            var annotationType = e.feature.getProperty("annotationType");
+                if (annotationType == "Point"){
+                    e.feature.getGeometry().forEachLatLng(function(path) {
+                        appendLog("<div>" + '\xa0\xa0' +
+                         "> Latitude: "+ path.lat() + "<--> Longtitude: "+ path.lng() +"</div>");                
+                    });
+                    infowindow.setPosition(e.feature.getGeometry().get());
+                    infowindow.setOptions({pixelOffset: new google.maps.Size(0,-30)});                
+                }else if (annotationType == "LotParking"){
+                    e.feature.getGeometry().forEachLatLng(function(path) {
+                        appendLog("<div>" + '\xa0\xa0' +
+                         "> Latitude: "+ path.lat() + "<--> Longtitude: "+ path.lng() +"</div>");                
+                    });
+                    infowindow.setPosition(e.latLng);
+                    infowindow.setOptions({pixelOffset: new google.maps.Size(0,-5)});     
+                }
+
+                infowindow.setContent(
+                    '<div style="width:150px; text-align: left;">'+"This feature is a "+
+                    annotationType+'. Coordinates in textbox.</div><br/>' +
+                    '<button id="deleteButton" onclick="deleteAnnotation(gDeleteAnnotation);">Delete</button>' +
+                    '<button id="navButton" onclick="navigation()">Navigate</button>'
+                );
+
+                    infowindow.open(gMaps);
+        }else{
+            gMaps.data.overrideStyle(e.feature, {
+                fillColor: 'green',
+                fillOpacity: 0.3,
+                strokeWeight: 1,
+                strokeColor: 'orange'
+            });
+            infowindow.close(gMaps);
+        }
+    });
+    gMaps.data.addListener('removefeature', function() {
+        infowindow.close(gMaps);
+        selectionToggle = false;
+    });
+
+ }
+
+function displayCoordinates(latlng){
+    // var geoCoordinates = [];
+            
+    // geoCoordinates.push(latlng);
+
+
+
+}
+
+function deleteAnnotation(gDeleteAnnotation){
+    gMaps.data.remove(gDeleteAnnotation);
+    gDeleteAnnotation=0;
+}
 
 if (window.WebSocket) {
+
+    var conn;
+    window.onbeforeunload = function () {
+        conn.close();
+    };
+
     appendLog("<div><b>" + '\xa0\xa0' + "Connection Established.</b></div>");
     appendLog("<div>" + '\xa0\xa0' +
         "> Use the palette tools to beginning annotation. " +
-        "Deselect a tool by clicking it again. " +
+        "Deselect a tool by selecting it again. " +
         "Delete an annotation by selecting the Bin tool and clicking on the annoation.</div>");
 
     conn = new WebSocket("ws://localhost:8080/ws");
+    // //TODO:test conn
     conn.addEventListener('message', function (e) {
         var msgServer = JSON.parse(e.data);
         if(!msgServer.features){
             // It doesn't exist, do nothing
         } else {
-            console.log(msgServer.features.properties.prop0[0][0]);
-        }
+            gMaps.data.addGeoJson(msgServer.features);
+            }
+        });
 
 
-    });
+    
+
+    leafInit(conn);
+
     conn.onclose = function (evt) {
         appendLog("<div><b>" + '\xa0\xa0' + "Connection closed.</b></div>");
     };
@@ -29,18 +136,7 @@ if (window.WebSocket) {
     appendLog("<div><b>" + '\xa0\xa0' + "Please Use a browser that supports WebSockets.</b></div>");
 }
 
-leafInit();
-
-function appendLog(message) {
-    var d = document.getElementById('log');
-    var doScroll = d.scrollTop == d.scrollHeight - d.clientHeight;
-    d.innerHTML += message;
-    if (doScroll) {
-        d.scrollTop = d.scrollHeight - d.clientHeight;
-    }
-}
-
-function leafInit() {
+function leafInit(conn) {
     var width = 600;
     var height = 600;
     var leafMaps = L.map('leafMaps', {
@@ -61,10 +157,11 @@ function leafInit() {
 
     leafMaps.dragging.disable();
 
-    leafDraw(leafMaps);
+    leafDrawInit(leafMaps);
+    leafDraw(leafMaps, conn);
 }
 
-function leafDraw(leafMaps) {
+function leafDrawInit(leafMaps) {
     // define toolbar and polygon options, adn initialize
     var options = {
         position: 'topleft',
@@ -92,6 +189,9 @@ function leafDraw(leafMaps) {
     leafMaps.pm.addControls(options);
     leafMaps.pm.enableDraw('Poly', options);
     leafMaps.pm.disableDraw('Poly');
+}
+
+function leafDraw(leafMaps, conn) {
 
     leafMaps.on('pm:drawstart', function (e) {
         if (e.shape === "Marker") {
@@ -102,7 +202,6 @@ function leafDraw(leafMaps) {
     });
 
     leafMaps.on('pm:create', function (e) {
-
         var geometryType;
         var pixCoordinates;
         var annotationType;
@@ -118,22 +217,28 @@ function leafDraw(leafMaps) {
         }
         var message4Server = createGEOJSON(geometryType, pixCoordinates, annotationType);
         message4Server = JSON.stringify(message4Server);
+        // stateChange(leafMaps,e.layer);
 
-        console.log(e.layer);
-        for (var name in e.layer) {
-            if (e.layer.hasOwnProperty(name)) {
-                console.log(name);
-            }
-          }
+        // conn.addEventListener('message', function (evt) {
+        //     var msgServer = JSON.parse(evt.data);
+        //     if (!msgServer.features) {
+        //         // It doesn't exist, do nothing
+        //     } else {
+        //         console.log(evt.data);
+        //         gMaps.data.addGeoJson(msgServer.features);
+        //     }
+        // });
 
-        var sent = toServer(message4Server);
+        var sent = toServer(message4Server,conn);
         if (!sent) {
             appendLog("<div><b>" + '\xa0\xa0' + "Message not sent.</b></div>");
         }
     });
 }
 
-function toServer(message4Server) {
+
+
+function toServer(message4Server, conn) {
     if (!conn) {
         return false;
     }
@@ -148,12 +253,12 @@ function createGEOJSON(geometryType, pixCoordinates, annotationType) {
 
     if (geometryType === "Marker") {
 
-        var pixelCoordinates = [pixCoordinates.lng, pixCoordinates.lat]; 
+        var pixelCoordinates = [pixCoordinates.lng, pixCoordinates.lat];
 
-        annotation = turf.point([0,0], {
+        annotation = turf.point([0, 0], {
             annotationType: annotationType,
-            pixelCoordinates: pixelCoordinates 
-            });
+            pixelCoordinates: pixelCoordinates
+        });
     } else if (geometryType === "Poly") {
         // for (i = 0; i < coordinates.length; i++) {
         var ringCloser = pixCoordinates[0][0];
@@ -162,7 +267,14 @@ function createGEOJSON(geometryType, pixCoordinates, annotationType) {
         for (i = 0; i < pixCoordinates[0].length; i++) {
             pixCoordinates1Array.push([pixCoordinates[0][i].lng, pixCoordinates[0][i].lat]);
         }
-        annotation = turf.polygon([[[0,0],[0,0],[0,0],[0,0]]], {
+        annotation = turf.polygon([
+            [
+                [0, 0],
+                [0, 0],
+                [0, 0],
+                [0, 0]
+            ]
+        ], {
             annotationType: annotationType,
             pixelCoordinates: [pixCoordinates1Array]
         });
@@ -171,16 +283,18 @@ function createGEOJSON(geometryType, pixCoordinates, annotationType) {
     return annotation;
 }
 
-
-// TODO:leave google maps until after leafmaps can send geojson to server
-function initMap() {
-    var mapG;
-    mapG = new google.maps.Map(document.getElementById('googleMaps'), {
-        center: {
-            lat: 43.451791,
-            lng: -80.496825
-        },
-        // mapTypeId: 'satellite',
-        zoom: 18
-    });
+function appendLog(message) {
+    var d = document.getElementById('log');
+    var doScroll = d.scrollTop == d.scrollHeight - d.clientHeight;
+    d.innerHTML += message;
+    if (doScroll) {
+        d.scrollTop = d.scrollHeight - d.clientHeight;
+    }
 }
+
+function stateChange(leafMaps, newState) {
+    setTimeout(function () {
+        leafMaps.removeLayer(newState);
+    }, 1000);
+}
+
