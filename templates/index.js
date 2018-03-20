@@ -320,7 +320,8 @@ function onFeatureGroupClick(e) {
 function onEachFeature(feature, layer) {
 
     var annotationType = feature.properties.annotationType;
-    layer.bindPopup(annotationType);
+    layer.bindPopup('<div style="width:150px; text-align: left;">' + "This feature is a " +
+    annotationType + '. Coordinates are in textbox. Click on the Google Maps Icon for More Options.</div>');
 
     var featureUUID = feature.properties.annotationID;
     layer.on('remove', function () {
@@ -331,24 +332,25 @@ function onEachFeature(feature, layer) {
         });
     });
 
-    // layer.on('click', function(){
-    //     if(feature.geometry.type == "Point"){
-
-    //         for (var coord in feature.geometry.coordinates) {
-
-    //             console.log(coord);
-    //         }
-
-    //     }else if (feature.geometry.type == "Polygon"){
-
-    //         for (var coords in feature.geometry.coordinates) {
-
-    //             console.log(coords);
-    //         }
-
-    //     }
-
-    // });
+    var clicked = false;
+    layer.on('click', function(){
+        clicked = !clicked;
+        if (clicked){
+            if(feature.geometry.type == "Point"){
+                appendLog("<div>" + '\xa0\xa0' +
+                "> Latitude: "+ feature.properties.pixelCoordinates.Vertex1Array[1] +
+                 "<--> Longtitude: "+ feature.properties.pixelCoordinates.Vertex1Array[0] +"</div>");
+            }else if (feature.geometry.type == "Polygon"){
+    
+                for (i =0; i< (feature.properties.pixelCoordinates.Vertex3Array[0]).length-1; i++) {
+                    appendLog("<div>" + '\xa0\xa0' +
+                    "> Latitude: "+ feature.properties.pixelCoordinates.Vertex3Array[0][i][1] +
+                     "<--> Longtitude: "+ feature.properties.pixelCoordinates.Vertex3Array[0][i][0] +"</div>");
+                }
+    
+            }
+        }
+    });
 }
 
 function toServer(message4Server, conn) {
