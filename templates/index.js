@@ -2,102 +2,106 @@ var gMaps;
 // var gDeleteAnnotation;
 function initMap() {
     gMaps = new google.maps.Map(document.getElementById('googleMaps'), {
-         center: {
-             lat: 43.451774,
-             lng: -80.496678
-         },
-         zoom: 20,
-         streetViewControl: false,
-         fullscreenControl: false,
-         zoomControl: false,
-         rotateControl: true,
-         tilt: 45,
-         mapTypeId: 'terrain',
-         mapTypeControl: true,
-         mapTypeControlOptions: {
-             style: google.maps.MapTypeControlStyle.HORIZONTAL_BAR,
-             position: google.maps.ControlPosition.TOP_RIGHT
-         }
-     });
+        center: {
+            lat: 43.451774,
+            lng: -80.496678
+        },
+        zoom: 20,
+        streetViewControl: false,
+        fullscreenControl: false,
+        zoomControl: false,
+        rotateControl: true,
+        tilt: 45,
+        mapTypeId: 'terrain',
+        mapTypeControl: true,
+        mapTypeControlOptions: {
+            style: google.maps.MapTypeControlStyle.HORIZONTAL_BAR,
+            position: google.maps.ControlPosition.TOP_RIGHT
+        }
+    });
 
-     var infowindow = new google.maps.InfoWindow();
+    var infowindow = new google.maps.InfoWindow();
 
-     gMaps.data.setStyle({
-        fillColor: 'green',
+    gMaps.data.setStyle({
+        fillColor: '#3794ff',
         fillOpacity: 0.3,
         strokeWeight: 1,
-        strokeColor: 'orange'
-      });
+        strokeColor: '#3794ff',
+        // icon: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png'
+    });
 
-      var selectionToggle = false;
-      gMaps.data.addListener('click', function(e) {
+    var selectionToggle = false;
+    gMaps.data.addListener('click', function (e) {
 
         gMaps.data.revertStyle();
-        
-        selectionToggle = !selectionToggle; 
-        if (selectionToggle==true){
-            
+
+        selectionToggle = !selectionToggle;
+        if (selectionToggle == true) {
             gMaps.data.overrideStyle(e.feature, {
-                fillColor: 'red',
+                fillColor: '#3fdbff',
                 fillOpacity: 0.3,
-                strokeWeight: 1,
-                strokeColor: 'orange'
+                strokeWeight: 3,
+                strokeColor: '#3fdbff'
             });
             gDeleteAnnotation = e.feature;
             var annotationType = e.feature.getProperty("annotationType");
-                if (annotationType == "Point"){
-                    e.feature.getGeometry().forEachLatLng(function(path) {
-                        appendLog("<div>" + '\xa0\xa0' +
-                         "> Latitude: "+ path.lat() + "<--> Longtitude: "+ path.lng() +"</div>");                
-                    });
-                    infowindow.setPosition(e.feature.getGeometry().get());
-                    infowindow.setOptions({pixelOffset: new google.maps.Size(0,-30)});                
-                }else if (annotationType == "LotParking"){
-                    e.feature.getGeometry().forEachLatLng(function(path) {
-                        appendLog("<div>" + '\xa0\xa0' +
-                         "> Latitude: "+ path.lat() + "<--> Longtitude: "+ path.lng() +"</div>");                
-                    });
-                    infowindow.setPosition(e.latLng);
-                    infowindow.setOptions({pixelOffset: new google.maps.Size(0,-5)});     
-                }
+            if (annotationType == "Point") {
+                e.feature.getGeometry().forEachLatLng(function (path) {
+                    appendLog("<div>" + '\xa0\xa0' +
+                        "> Latitude: " + path.lat() + "<--> Longtitude: " + path.lng() + "</div>");
+                });
+                infowindow.setPosition(e.feature.getGeometry().get());
+                infowindow.setOptions({
+                    pixelOffset: new google.maps.Size(0, -30)
+                });
+            } else if (annotationType == "LotParking") {
+                e.feature.getGeometry().forEachLatLng(function (path) {
+                    appendLog("<div>" + '\xa0\xa0' +
+                        "> Latitude: " + path.lat() + "<--> Longtitude: " + path.lng() + "</div>");
+                });
+                infowindow.setPosition(e.latLng);
+                infowindow.setOptions({
+                    pixelOffset: new google.maps.Size(0, -5)
+                });
+            }
 
-                infowindow.setContent(
-                    '<div style="width:150px; text-align: left;">'+"This feature is a "+
-                    annotationType+'. Coordinates in textbox.</div><br/>' +
-                    '<button id="deleteButton" onclick="deleteAnnotation(gDeleteAnnotation);">Delete</button>' +
-                    '<button id="navButton" onclick="navigation()">Navigate</button>'
-                );
+            infowindow.setContent(
+                '<div style="width:150px; text-align: left;">' + "This feature is a " +
+                annotationType + '. Coordinates in textbox.</div><br/>' +
+                '<button id="deleteButton" onclick="deleteAnnotation(gDeleteAnnotation);">Delete</button>' +
+                '<button id="navButton" onclick="navigation()">Navigate</button>'
+            );
 
-                    infowindow.open(gMaps);
-        }else{
+            infowindow.open(gMaps);
+        } else {
             gMaps.data.overrideStyle(e.feature, {
-                fillColor: 'green',
+                fillColor: '#3794ff',
                 fillOpacity: 0.3,
                 strokeWeight: 1,
-                strokeColor: 'orange'
+                strokeColor: '#3794ff'
             });
             infowindow.close(gMaps);
         }
     });
-    gMaps.data.addListener('removefeature', function() {
+    gMaps.data.addListener('removefeature', function () {
         infowindow.close(gMaps);
         selectionToggle = false;
     });
 
- }
-
-function displayCoordinates(latlng){
-    // var geoCoordinates = [];
-            
-    // geoCoordinates.push(latlng);
-
-
-
 }
 
-function deleteAnnotation(gDeleteAnnotation){
+function deleteAnnotation(gDeleteAnnotation) {
+
+    var featureUUID = gDeleteAnnotation.getProperty("annotationID");
+    geojson.eachLayer(function (layer) {
+        // layer.feature is the original geojson feature
+        if (layer.feature.properties.annotationID === featureUUID) {
+            geojson.removeLayer(layer);
+        }
+    });
+
     gMaps.data.remove(gDeleteAnnotation);
-    gDeleteAnnotation=0;
+    gDeleteAnnotation = 0;
 }
 
 if (window.WebSocket) {
@@ -114,18 +118,14 @@ if (window.WebSocket) {
         "Delete an annotation by selecting the Bin tool and clicking on the annoation.</div>");
 
     conn = new WebSocket("ws://localhost:8080/ws");
-    // //TODO:test conn
     conn.addEventListener('message', function (e) {
         var msgServer = JSON.parse(e.data);
-        if(!msgServer.features){
+        if (!msgServer.features) {
             // It doesn't exist, do nothing
         } else {
             gMaps.data.addGeoJson(msgServer.features);
-            }
-        });
-
-
-    
+        }
+    });
 
     leafInit(conn);
 
@@ -157,11 +157,20 @@ function leafInit(conn) {
 
     leafMaps.dragging.disable();
 
-    leafDrawInit(leafMaps);
-    leafDraw(leafMaps, conn);
+    var blueIcon = new L.Icon({
+        iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+    });
+
+    leafDrawInit(leafMaps, blueIcon);
+    leafDraw(leafMaps, conn, blueIcon);
 }
 
-function leafDrawInit(leafMaps) {
+function leafDrawInit(leafMaps, blueIcon) {
     // define toolbar and polygon options, adn initialize
     var options = {
         position: 'topleft',
@@ -173,25 +182,53 @@ function leafDrawInit(leafMaps) {
         cutPolygon: false,
         editMode: false,
         removalMode: true,
+        markerStyle: {
+            opacity: 0.5,
+            draggable: true,
+            // icon: blueIcon,
+        },
         templineStyle: {
-            color: 'red',
+            color: '#3794ff',
         },
         hintlineStyle: {
-            color: 'red',
+            color: '#3794ff',
             dashArray: [5, 5],
         },
         pathOptions: {
-            color: 'orange',
-            fillColor: 'green',
-            fillOpacity: 0.4,
+            color: '#3794ff',
+            fillColor: '#3794ff',
+            fillOpacity: 0.3,
         },
     };
     leafMaps.pm.addControls(options);
     leafMaps.pm.enableDraw('Poly', options);
+    leafMaps.pm.enableDraw('Marker', options);
     leafMaps.pm.disableDraw('Poly');
+    leafMaps.pm.disableDraw('Marker');
 }
 
-function leafDraw(leafMaps, conn) {
+var selectionToggle = false;
+
+function leafDraw(leafMaps, conn, blueIcon) {
+
+    var polygonStyle = {
+        "stroke": true,
+        "color": "#3794ff",
+        "fillColor": "#3794ff",
+        "weight": 3,
+        "fillOpacity": 0.3
+    };
+
+    geojson = L.geoJSON(null, {
+        pointToLayer: function (feature, latlng) {
+            return L.marker(latlng, {
+                // icon: blueIcon
+            });
+        },
+        style: polygonStyle,
+        onEachFeature: onEachFeature
+    }).addTo(leafMaps);
+
 
     leafMaps.on('pm:drawstart', function (e) {
         if (e.shape === "Marker") {
@@ -217,26 +254,102 @@ function leafDraw(leafMaps, conn) {
         }
         var message4Server = createGEOJSON(geometryType, pixCoordinates, annotationType);
         message4Server = JSON.stringify(message4Server);
-        // stateChange(leafMaps,e.layer);
 
-        // conn.addEventListener('message', function (evt) {
-        //     var msgServer = JSON.parse(evt.data);
-        //     if (!msgServer.features) {
-        //         // It doesn't exist, do nothing
-        //     } else {
-        //         console.log(evt.data);
-        //         gMaps.data.addGeoJson(msgServer.features);
-        //     }
-        // });
+        conn.addEventListener('message', function (evt) {
+            var msgServer = JSON.parse(evt.data);
+            if (!msgServer.features) {
+                // It doesn't exist, do nothing
+            } else {
+                var swapCoordinates = msgServer.features.geometry.coordinates;
 
-        var sent = toServer(message4Server,conn);
+                if (msgServer.features.geometry.type == "Point") {
+                    msgServer.features.geometry.coordinates = msgServer.features.properties.pixelCoordinates.Vertex1Array;
+                    msgServer.features.properties.pixelCoordinates.Vertex1Array = swapCoordinates;
+                } else if (msgServer.features.geometry.type == "Polygon") {
+                    msgServer.features.geometry.coordinates = msgServer.features.properties.pixelCoordinates.Vertex3Array;
+                    msgServer.features.properties.pixelCoordinates.Vertex3Array = swapCoordinates;
+                }
+                geojson.addData(msgServer.features);
+
+                leafMaps.removeLayer(e.layer);
+                this.removeEventListener('message', arguments.callee, false);
+            }
+        });
+
+        var sent = toServer(message4Server, conn);
         if (!sent) {
             appendLog("<div><b>" + '\xa0\xa0' + "Message not sent.</b></div>");
         }
     });
+    geojson.on("click", onFeatureGroupClick);
+}
+
+function onFeatureGroupClick(e) {
+    var group = e.target;
+    var layer = e.layer;
+
+    var polygonStyle = {
+        "stroke": true,
+        "color": "#3794ff",
+        "fillColor": "#3794ff",
+        "weight": 3,
+        "fillOpacity": 0.3
+    };
+    var polygonHLight = {
+        "stroke": true,
+        "color": "#3fdbff",
+        "fillColor": "#3fdbff",
+        "weight": 3,
+        "fillOpacity": 0.5
+    };
+    if (layer._latlngs) {
+        group.setStyle(polygonStyle);
+        selectionToggle = !selectionToggle;
+
+        if (selectionToggle == true) {
+            layer.setStyle(polygonHLight);
+        } else {
+            layer.setStyle(polygonStyle);
+            layer.closePopup();
+        }
+    }
 }
 
 
+
+function onEachFeature(feature, layer) {
+
+    var annotationType = feature.properties.annotationType;
+    layer.bindPopup(annotationType);
+
+    var featureUUID = feature.properties.annotationID;
+    layer.on('remove', function () {
+        gMaps.data.forEach(function (feature) {
+            if (feature.getProperty('annotationID') == featureUUID) {
+                gMaps.data.remove(feature);
+            }
+        });
+    });
+
+    // layer.on('click', function(){
+    //     if(feature.geometry.type == "Point"){
+
+    //         for (var coord in feature.geometry.coordinates) {
+
+    //             console.log(coord);
+    //         }
+
+    //     }else if (feature.geometry.type == "Polygon"){
+
+    //         for (var coords in feature.geometry.coordinates) {
+
+    //             console.log(coords);
+    //         }
+
+    //     }
+
+    // });
+}
 
 function toServer(message4Server, conn) {
     if (!conn) {
@@ -297,4 +410,3 @@ function stateChange(leafMaps, newState) {
         leafMaps.removeLayer(newState);
     }, 1000);
 }
-

@@ -1,363 +1,415 @@
-var conn;
-var pixelX = [];
-var pixelY = [];
-var drawCounter = 0;
-var width = 600;
-var height = 600;
-var layer = new Konva.Layer();
-var drawLine = [];
-var polyLot = [];
-var infoLots = [];
-var featureIDLot = 0;
+var gMaps;
+// var gDeleteAnnotation;
+function initMap() {
+    gMaps = new google.maps.Map(document.getElementById('googleMaps'), {
+         center: {
+             lat: 43.451774,
+             lng: -80.496678
+         },
+         zoom: 20,
+         streetViewControl: false,
+         fullscreenControl: false,
+         zoomControl: false,
+         rotateControl: true,
+         tilt: 45,
+         mapTypeId: 'terrain',
+         mapTypeControl: true,
+         mapTypeControlOptions: {
+             style: google.maps.MapTypeControlStyle.HORIZONTAL_BAR,
+             position: google.maps.ControlPosition.TOP_RIGHT
+         }
+     });
 
-var log = document.getElementById('log');
-var stage = new Konva.Stage({
-    container: 'viewportTop',
-    width: width,
-    height: height
-});
+     var infowindow = new google.maps.InfoWindow();
 
-var mapG;
-var leafMaps = L.map('leafMaps', {
-    minZoom: 1,
-    maxZoom: 1,
-    center: [0, 0],
-    zoom: 1,
-    crs: L.CRS.Simple
-});
+     gMaps.data.setStyle({
+        fillColor: '#3794ff',
+        fillOpacity: 0.3,
+        strokeWeight: 1,
+        strokeColor: '#3794ff',
+        icon: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png' 
+      });
 
+      var selectionToggle = false;
+      gMaps.data.addListener('click', function(e) {
 
-leafInit();
+        gMaps.data.revertStyle();
+        
+        selectionToggle = !selectionToggle; 
+        if (selectionToggle==true){        
+            gMaps.data.overrideStyle(e.feature, {
+                fillColor: '#3fdbff',
+                fillOpacity: 0.3,
+                strokeWeight: 3,
+                strokeColor: '#3fdbff'
+            });
+            gDeleteAnnotation = e.feature;
+            var annotationType = e.feature.getProperty("annotationType");
+                if (annotationType == "Point"){
+                    e.feature.getGeometry().forEachLatLng(function(path) {
+                        appendLog("<div>" + '\xa0\xa0' +
+                         "> Latitude: "+ path.lat() + "<--> Longtitude: "+ path.lng() +"</div>");                
+                    });
+                    infowindow.setPosition(e.feature.getGeometry().get());
+                    infowindow.setOptions({pixelOffset: new google.maps.Size(0,-30)});                
+                }else if (annotationType == "LotParking"){
+                    e.feature.getGeometry().forEachLatLng(function(path) {
+                        appendLog("<div>" + '\xa0\xa0' +
+                         "> Latitude: "+ path.lat() + "<--> Longtitude: "+ path.lng() +"</div>");                
+                    });
+                    infowindow.setPosition(e.latLng);
+                    infowindow.setOptions({pixelOffset: new google.maps.Size(0,-5)});     
+                }
 
-appendLog("<div><b>Please mark the 4 corners of a parking spot and send.</b></div>");
-// make_base();
-// $(window).focus(function() {
-//     make_base();
-//     var pixelX = [];
-//     var pixelY = [];
-//     var drawCounter = 0;
-// });
+                infowindow.setContent(
+                    '<div style="width:150px; text-align: left;">'+"This feature is a "+
+                    annotationType+'. Coordinates in textbox.</div><br/>' +
+                    '<button id="deleteButton" onclick="deleteAnnotation(gDeleteAnnotation);">Delete</button>' +
+                    '<button id="navButton" onclick="navigation()">Navigate</button>'
+                );
 
+                    infowindow.open(gMaps);
+        }else{
+            gMaps.data.overrideStyle(e.feature, {
+                fillColor: '#3794ff',
+                fillOpacity: 0.3,
+                strokeWeight: 1,
+                strokeColor: '#3794ff'
+            });
+            infowindow.close(gMaps);
+        }
+    });
+    gMaps.data.addListener('removefeature', function() {
+        infowindow.close(gMaps);
+        selectionToggle = false;
+    });
 
-function leafInit() {
-    var northEast = leafMaps.unproject([width, 0], leafMaps.getMaxZoom());
-    var southWest = leafMaps.unproject([0, height], leafMaps.getMaxZoom());
+ }
+
+function deleteAnnotation(gDeleteAnnotation){
+   
+    var featureUUID = gDeleteAnnotation.getProperty("annotationID");
+    geojson.eachLayer(function(layer){
+        // layer.feature is the original geojson feature
+        if(layer.feature.properties.annotationID === featureUUID) {
+            geojson.removeLayer(layer);
+        }
+      });
+
+    gMaps.data.remove(gDeleteAnnotation);
+    gDeleteAnnotation=0;
+}
+
+if (window.WebSocket) {
+
+    var conn;
+    window.onbeforeunload = function () {
+        conn.close();
+    };
+
+    appendLog("<div><b>" + '\xa0\xa0' + "Connection Established.</b></div>");
+    appendLog("<div>" + '\xa0\xa0' +
+        "> Use the palette tools to beginning annotation. " +
+        "Deselect a tool by selecting it again. " +
+        "Delete an annotation by selecting the Bin tool and clicking on the annoation.</div>");
+
+    conn = new WebSocket("ws://localhost:8080/ws");
+    conn.addEventListener('message', function (e) {
+        var msgServer = JSON.parse(e.data);
+        if(!msgServer.features){
+            // It doesn't exist, do nothing
+        } else {
+            gMaps.data.addGeoJson(msgServer.features);
+            }
+        });
+
+    leafInit(conn);
+
+    conn.onclose = function (evt) {
+        appendLog("<div><b>" + '\xa0\xa0' + "Connection closed.</b></div>");
+    };
+} else {
+    appendLog("<div><b>" + '\xa0\xa0' + "Please Use a browser that supports WebSockets.</b></div>");
+}
+
+function leafInit(conn) {
+    var width = 600;
+    var height = 600;
+    var leafMaps = L.map('leafMaps', {
+        // minZoom: 1,
+        // maxZoom: 1,
+        zoom: 0,
+        zoomControl: false,
+        center: [300, 300],
+        crs: L.CRS.Simple
+    });
+    var northEast = leafMaps.unproject([0, width]);
+    var southWest = leafMaps.unproject([height, 0]);
     var imageBounds = new L.LatLngBounds(southWest, northEast);
     var imageUrl = 'http://localhost:8080/templates/rBW-loc43_4516288_-80_4961367-fov80-heading205-pitch-10.jpg';
 
-    leafMaps.setMaxBounds(new L.LatLngBounds(southWest, northEast));
-    L.imageOverlay(imageUrl, imageBounds).addTo(leafMaps);
     leafMaps.setMaxBounds(imageBounds);
+    L.imageOverlay(imageUrl, imageBounds).addTo(leafMaps);
+
+    leafMaps.dragging.disable();
+
+    var blueIcon = new L.Icon({
+        iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+      });
+
+    leafDrawInit(leafMaps,blueIcon);
+    leafDraw(leafMaps, conn,blueIcon);
 }
 
-// define toolbar options
-var options = {
-    position: 'topleft', // toolbar position, options are 'topleft', 'topright', 'bottomleft', 'bottomright'
-    drawMarker: true, // adds button to draw markers
-    drawPolyline: false, // adds button to draw a polyline
-    drawRectangle: false, // adds button to draw a rectangle
-    drawPolygon: true, // adds button to draw a polygon
-    drawCircle: false, // adds button to draw a cricle
-    cutPolygon: false, // adds button to cut a hole in a polygon
-    editMode: false, // adds button to toggle edit mode for all layers
-    removalMode: true, // adds a button to remove layers
-        // the lines between coordinates/markers
-        templineStyle: {
-            color: 'red',
+function leafDrawInit(leafMaps,blueIcon) {
+    // define toolbar and polygon options, adn initialize
+    var options = {
+        position: 'topleft',
+        drawMarker: true,
+        drawPolyline: false,
+        drawRectangle: false,
+        drawPolygon: true,
+        drawCircle: false,
+        cutPolygon: false,
+        editMode: false,
+        removalMode: true,
+        markerStyle: {
+            opacity: 0.5,
+            draggable: true,
+            icon: blueIcon,
         },
-    
-        // the line from the last marker to the mouse cursor
+        templineStyle: {
+            color: '#3794ff',
+        },
         hintlineStyle: {
-            color: 'red',
+            color: '#3794ff',
             dashArray: [5, 5],
         },
         pathOptions: {
-            // add leaflet options for polylines/polygons
-            color: 'orange',
-            fillColor: 'green',
-            fillOpacity: 0.4,
+            color: '#3794ff',
+            fillColor: '#3794ff',
+            fillOpacity: 0.3,
         },
-};
+    };
+    leafMaps.pm.addControls(options);
+    leafMaps.pm.enableDraw('Poly', options);
+    leafMaps.pm.enableDraw('Marker', options);
+    leafMaps.pm.disableDraw('Poly');
+    leafMaps.pm.disableDraw('Marker');
+}
 
-// add leaflet.pm controls to the map
-leafMaps.pm.addControls(options);
+var selectionToggle = false;
 
-// enable drawing mode for shape to change change
-leafMaps.pm.enableDraw('Poly', options);
+function leafDraw(leafMaps, conn,blueIcon) {
 
-// // listen to when drawing mode gets enabled
-// leafMaps.on('pm:drawstart', function(e) {
-//     console.log(e.shape); // the name of the shape being drawn (i.e. 'Circle')
-//     console.log(e.workingLayer); // the leaflet layer displayed while drawing
-// });
+    var polygonStyle = {
+        "stroke": true,
+        "color": "#3794ff",
+        "fillColor": "#3794ff",
+        "weight": 3,
+        "fillOpacity": 0.3
+    };
 
-// listen to when a new layer is created
-leafMaps.on('pm:create', function(e) {
-    e.shape; // the name of the shape being drawn (i.e. 'Circle')
-    console.log(e.layer); // the leaflet layer created
+    geojson = L.geoJSON(null, {
+        pointToLayer: function(feature, latlng) {
+        return L.marker(latlng, {
+            icon: blueIcon
+        });
+        },
+        style: polygonStyle,
+        onEachFeature: onEachFeature
+    }).addTo(leafMaps);
 
-    for (var name in e.layer) {
-        if (e.layer.hasOwnProperty(name)) {
-            console.log(name);
+
+    leafMaps.on('pm:drawstart', function (e) {
+        if (e.shape === "Marker") {
+            appendLog("<div>" + '\xa0\xa0' + "> Place marker to get a location coordinate.</div>");
+        } else if (e.shape === "Poly") {
+            appendLog("<div>" + '\xa0\xa0' + "> Draw polygon to get coordinates encapsulating a feature.</div>");
+        }
+    });
+
+    leafMaps.on('pm:create', function (e) {
+        var geometryType;
+        var pixCoordinates;
+        var annotationType;
+
+        if (e.shape === "Marker") {
+            geometryType = e.shape;
+            pixCoordinates = e.layer._latlng;
+            annotationType = "Point";
+        } else if (e.shape === "Poly") {
+            geometryType = e.shape;
+            pixCoordinates = e.layer._latlngs;
+            annotationType = "LotParking";
+        }
+        var message4Server = createGEOJSON(geometryType, pixCoordinates, annotationType);
+        message4Server = JSON.stringify(message4Server);
+
+        conn.addEventListener('message', function (evt) {
+            var msgServer = JSON.parse(evt.data);
+            if (!msgServer.features) {
+                // It doesn't exist, do nothing
+            } else {
+                var swapCoordinates = msgServer.features.geometry.coordinates; 
+
+                if (msgServer.features.geometry.type == "Point"){
+                    msgServer.features.geometry.coordinates = msgServer.features.properties.pixelCoordinates.Vertex1Array;
+                    msgServer.features.properties.pixelCoordinates.Vertex1Array = swapCoordinates;
+                }else if (msgServer.features.geometry.type == "Polygon"){
+                    msgServer.features.geometry.coordinates = msgServer.features.properties.pixelCoordinates.Vertex3Array;
+                    msgServer.features.properties.pixelCoordinates.Vertex3Array = swapCoordinates;
+                }
+                geojson.addData(msgServer.features);
+
+                leafMaps.removeLayer(e.layer);
+                this.removeEventListener('message',arguments.callee,false);
+            }
+        });
+
+        var sent = toServer(message4Server,conn);
+        if (!sent) {
+            appendLog("<div><b>" + '\xa0\xa0' + "Message not sent.</b></div>");
+        }
+    });
+    geojson.on("click", onFeatureGroupClick);
+}
+
+function onFeatureGroupClick(e) {
+	var group = e.target;
+  	var layer = e.layer;
+  
+    var polygonStyle = {
+        "stroke": true,
+        "color": "#3794ff",
+        "fillColor": "#3794ff",
+        "weight": 3,
+        "fillOpacity": 0.3
+    };
+    var polygonHLight = {
+        "stroke": true,
+        "color": "#3fdbff",
+        "fillColor": "#3fdbff",
+        "weight": 3,
+        "fillOpacity": 0.5
+    };
+      if (layer._latlngs){
+        group.setStyle(polygonStyle);
+        selectionToggle = !selectionToggle;
+
+        if (selectionToggle==true){
+            layer.setStyle(polygonHLight);
+        }else{
+            layer.setStyle(polygonStyle);
+            layer.closePopup();
         }
       }
-
-});
-
-// toggle global removal mode
-leafMaps.pm.toggleGlobalRemovalMode();
-
-// listen to removal of layers that are NOT ignored and NOT helpers by leaflet.pm
-leafMaps.on('pm:remove', function(e) {});
-
-
-
-
-function initMap() {
-    mapG = new google.maps.Map(document.getElementById('googleMaps'), {
-        center: {
-            lat: 43.451791,
-            lng: -80.496825
-        },
-        // mapTypeId: 'satellite',
-        zoom: 18
-    });
-}
-
-
-
-// TODO:leave google maps until after leafmaps can send geojson to server
-
-function drawMapLots(mapG, featureIDLot) {
-
-    for (i = 0; i < featureIDLot; i++) {
-        var mapLotsCoor = [{
-                lat: infoLots[i][0],
-                lng: infoLots[i][1]
-            }, // north west
-            {
-                lat: infoLots[i][2],
-                lng: infoLots[i][3]
-            }, // south west
-            {
-                lat: infoLots[i][4],
-                lng: infoLots[i][5]
-            }, // south east
-            {
-                lat: infoLots[i][6],
-                lng: infoLots[i][7]
-            } // north east
-        ];
-        // mapG.data.add({geometry: new google.maps.Data.Polygon([mapLotsCoor])});
-
-        var mapLots = new google.maps.Polygon({
-            paths: mapLotsCoor,
-            strokeColor: '#FF0000',
-            strokeOpacity: 0.8,
-            strokeWeight: 3,
-            fillColor: '#FF0000',
-            fillOpacity: 0.35
-        });
-        mapLots.setMap(mapG);
     }
+
+
+
+    function onEachFeature(feature, layer) {
+
+        var annotationType = feature.properties.annotationType;
+        layer.bindPopup(annotationType);
+    
+        var featureUUID = feature.properties.annotationID;
+        layer.on('remove', function(){
+            gMaps.data.forEach(function(feature) {
+                if (feature.getProperty('annotationID') == featureUUID) {
+                    gMaps.data.remove(feature);
+                }
+            });
+        });
+    
+        // layer.on('click', function(){
+        //     if(feature.geometry.type == "Point"){
+    
+        //         for (var coord in feature.geometry.coordinates) {
+       
+        //             console.log(coord);
+        //         }
+    
+        //     }else if (feature.geometry.type == "Polygon"){
+    
+        //         for (var coords in feature.geometry.coordinates) {
+       
+        //             console.log(coords);
+        //         }
+    
+        //     }
+    
+    
+    
+    
+        // });
+    
+    
+    
+    }
+
+function toServer(message4Server, conn) {
+    if (!conn) {
+        return false;
+    }
+    conn.send(message4Server);
+    return true;
 }
 
-        //TODO: make this just for connection, instruction and error messages
+function createGEOJSON(geometryType, pixCoordinates, annotationType) {
+
+    var annotation;
+    var pixCoordinates1Array = [];
+
+    if (geometryType === "Marker") {
+
+        var pixelCoordinates = [pixCoordinates.lng, pixCoordinates.lat];
+
+        annotation = turf.point([0, 0], {
+            annotationType: annotationType,
+            pixelCoordinates: pixelCoordinates
+        });
+    } else if (geometryType === "Poly") {
+        // for (i = 0; i < coordinates.length; i++) {
+        var ringCloser = pixCoordinates[0][0];
+        pixCoordinates[0].push(ringCloser);
+
+        for (i = 0; i < pixCoordinates[0].length; i++) {
+            pixCoordinates1Array.push([pixCoordinates[0][i].lng, pixCoordinates[0][i].lat]);
+        }
+        annotation = turf.polygon([
+            [
+                [0, 0],
+                [0, 0],
+                [0, 0],
+                [0, 0]
+            ]
+        ], {
+            annotationType: annotationType,
+            pixelCoordinates: [pixCoordinates1Array]
+        });
+        // }    
+    }
+    return annotation;
+}
 
 function appendLog(message) {
-    var d = log;
+    var d = document.getElementById('log');
     var doScroll = d.scrollTop == d.scrollHeight - d.clientHeight;
-    log.innerHTML += message;
+    d.innerHTML += message;
     if (doScroll) {
         d.scrollTop = d.scrollHeight - d.clientHeight;
     }
 }
 
-
-        //TODO: copy geojson.io
-
-document.getElementById('form').onsubmit = function () {
-    if (!pixelX[0] || !pixelX[0]) {
-        return false;
-    }
-    if (pixelX.length == 2 || pixelX.length == 3) {
-        appendLog("<div><b>Please either mark 1 or 4 points.</b></div>");
-        pixelX = [];
-        pixelY = [];
-        document.getElementById("form_x").innerHTML = pixelX;
-        document.getElementById("form_y").innerHTML = pixelY;
-        drawCounter = 0;
-        return false;
-    }
-    var message4Server = {
-        lotX0: parseInt(pixelX[0]),
-        lotY0: parseInt(pixelY[0]),
-        lotX1: parseInt(pixelX[1]),
-        lotY1: parseInt(pixelY[1]),
-        lotX2: parseInt(pixelX[2]),
-        lotY2: parseInt(pixelY[2]),
-        lotX3: parseInt(pixelX[3]),
-        lotY3: parseInt(pixelY[3])
-    };
-    message4Server = JSON.stringify(message4Server);
-    make_base();
-    pixelX = [];
-    pixelY = [];
-    drawCounter = 0;
-    drawLine = [];
-    document.getElementById("form_x").innerHTML = pixelX;
-    document.getElementById("form_y").innerHTML = pixelY;
-
-    if (!conn) {
-        return false;
-    }
-    conn.send(message4Server);
-    return false;
-};
-
-
-
-if (window.WebSocket) {
-    conn = new WebSocket("ws://localhost:8080/ws");
-
-    conn.addEventListener('message', function (e) {
-        var msgServer = JSON.parse(e.data);
-
-        // console.log(msgServer);
-        //TODO: replace with geojson
-        var msgType = msgServer.messageprocessedtype;
-        var msgOriginal;
-        var msgOriginal1DArray = [];
-        var msgOriginal2DArray = [];
-        var msgProcessed;
-        var infoLot = [];
-        if (msgType == 0) {
-            msgOriginal = msgServer.lot2client[0].messageprocessedoriginal;
-            msgProcessed = msgServer.lot2client[0].messageprocessedvectors;
-            appendLog("<div>> Pixel Coor: " +
-                JSON.stringify(msgOriginal) +
-                " Latitude: " +
-                JSON.stringify(msgProcessed.Latitude) + ", Longtitude: " +
-                JSON.stringify(msgProcessed.Longtitude) + ", Elevation: " +
-                JSON.stringify(msgProcessed.Elevation + '</div>'));
-
-        } else if (msgType == 1) {
-            for (i = 0; i < msgServer.lot2client.length; i++) {
-                msgOriginal = msgServer.lot2client[i].messageprocessedoriginal;
-                msgProcessed = msgServer.lot2client[i].messageprocessedvectors;
-
-                msgOriginal2DArray.push(msgOriginal);
-                infoLot.push(msgProcessed.Latitude, msgProcessed.Longtitude);
-            }
-            for (var x = 0; x < msgOriginal2DArray.length; x++) {
-                msgOriginal1DArray = msgOriginal1DArray.concat(msgOriginal2DArray[x]);
-            }
-            infoLots.push(infoLot);
-            drawLots(msgOriginal1DArray, featureIDLot, infoLots[featureIDLot]);
-            featureIDLot++;
-        } else if (msgType == 9) {
-            appendLog("<div><b>Please Click within the vertex map.</b></div>");
-        }
-
-        //TODO: delete
-        // make_base();
-        //TODO:reactive google maps when leafmaps is done; maybe consider its new implementation
-        // drawMapLots(mapG, featureIDLot);
-    });
-
-    conn.onclose = function (evt) {
-        appendLog("<div><b>Connection closed.</b></div>");
-    };
-} else {
-    appendLog("<div><b>Your browser does not support WebSockets.</b></div>");
+function stateChange(leafMaps, newState) {
+    setTimeout(function () {
+        leafMaps.removeLayer(newState);
+    }, 1000);
 }
 
-// #########garbage#######################
-// #########garbage#######################
-
-function make_base() {
-    var canvas = document.getElementById('viewportBottom');
-    context = canvas.getContext('2d');
-    context.clearRect(0, 0, width, height);
-    base_image = new Image();
-    base_image.src = 'templates/rBW-loc43_4516288_-80_4961367-fov80-heading205-pitch-10.jpg';
-    base_image.onload = function () {
-        context.drawImage(base_image, 0, 0, width, height);
-    };
-}
-
-//TODO:use gEOJSON instead of push arrays
-
-document.getElementById("viewportTop").onclick = function (e) {
-
-    var relX = e.clientX;
-    var relY = e.clientY;
-
-
-    if (drawCounter < 4) {
-        pixelX.push(relX);
-        pixelY.push(relY);
-        document.getElementById("form_x").innerHTML = pixelX;
-        document.getElementById("form_y").innerHTML = pixelY;
-        drawCounter++;
-        drawClick(relX, relY);
-
-        drawLine.push(relX, relY);
-        var featureIDLot = 0;
-        var infoLots = 0;
-        drawLots(drawLine, featureIDLot, infoLots);
-
-
-    } else {
-        appendLog("<div><b>Please send the pixel array for processing.</b></div>");
-        drawLine = [];
-    }
-};
-
-
-function drawClick(relX, relY) {
-    var circle = new Konva.Circle({
-        x: relX,
-        y: relY,
-        radius: 3,
-        fill: 'white',
-        stroke: 'white',
-        strokeWidth: 1
-    });
-
-    layer.add(circle);
-    stage.add(layer);
-}
-
-function drawLots(msgOriginal1DArray, featureIDLot, infoLot) {
-
-    var closeLot = false;
-    if (msgOriginal1DArray.length >= 8) {
-        closeLot = true;
-    }
-    polyLot = new Konva.Line({
-        points: msgOriginal1DArray,
-        stroke: '#edeaea',
-        strokeWidth: 5,
-        closed: closeLot
-    });
-
-    polyLot.on('click', function () {
-
-        appendLog("<div>> Latitude: " +
-            JSON.stringify(infoLot[0]) + ", Longtitude: " +
-            JSON.stringify(infoLot[1]) + '</div>');
-        appendLog("<div>> Latitude: " +
-            JSON.stringify(infoLot[2]) + ", Longtitude: " +
-            JSON.stringify(infoLot[3]) + '</div>');
-        appendLog("<div>> Latitude: " +
-            JSON.stringify(infoLot[4]) + ", Longtitude: " +
-            JSON.stringify(infoLot[5]) + '</div>');
-        appendLog("<div>> Latitude: " +
-            JSON.stringify(infoLot[6]) + ", Longtitude: " +
-            JSON.stringify(infoLot[7]) + '</div>');
-    });
-
-    layer.add(polyLot);
-    stage.add(layer);
-}
