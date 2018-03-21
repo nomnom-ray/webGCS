@@ -332,6 +332,11 @@ function onEachFeature(feature, layer) {
         });
     });
 
+    // layer.on('popupopen', function () { 
+    //     console.log(feature.properties.annotationID);
+
+    // });
+
     var clicked = false;
     layer.on('click', function(){
         clicked = !clicked;

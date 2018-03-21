@@ -131,14 +131,12 @@ func processing(message MsgFromClient, projectedTile *models.ProjectedTiles) (mo
 		fmt.Printf("Failed to convert %s: %s", g.GeometryType, err)
 	}
 
-	// TODO: save geojson to tile38; determine the role of redis still
-	// if len(lots2Client) == 4 {
-	// 	err := PostNewFeatures(msg2Client)
-	// 	if err != nil {
-	// 		return msg2Client, err
-	// 	}
-
 	msg2Client.Feature = feature2Clnts
+
+	err = PostNewFeatures(msg2Client)
+	if err != nil {
+		return msg2Client, err
+	}
 
 	return msg2Client, nil
 }
@@ -188,9 +186,7 @@ func (c *Connection) syncToDatabase(wsConn *websocket.Conn) error {
 }
 
 //PostNewFeatures pushes primitive types to the model for storing in redis
-func PostNewFeatures(msg2Client models.Msg2Client) error {
-
-	msg2DB := msg2Client
+func PostNewFeatures(msg2DB models.Msg2Client) error {
 	_, err := models.NewAnnotation(msg2DB)
 	return err
 }

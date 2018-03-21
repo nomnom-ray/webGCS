@@ -3,8 +3,10 @@ package models
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"strconv"
 
+	"github.com/go-redis/redis"
 	"github.com/paulmach/orb/geojson"
 )
 
@@ -47,11 +49,26 @@ type Msg2Client struct {
 
 //NewAnnotation constructor FUNCTION of Update struct
 func NewAnnotation(annotation Msg2Client) (*Annotation, error) {
-	id, err := client.Incr("annotation:next-id").Result() //assign id to assignment to redis
-	if err != nil {
-		return nil, err
-	}
-	key := fmt.Sprintf("annotation:%d", id)
+	// id, err := client.Incr("annotation:next-id").Result() //assign id to assignment to redis
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// key := fmt.Sprintf("annotation:%d", id)
+
+	// annotationBin, err := annotation.MarshalBinary()
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// pipe := client.Pipeline()
+	// pipe.HSet(key, "id", id)
+	// pipe.HSet(key, "annotation", annotationBin)
+	// pipe.RPush("annotationlist", id)
+
+	// _, err = pipe.Exec()
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	//TODO:tile38 test
 	//All Tile38 commands should use redis.NewStringCmd(...args) to orgnize parameters,
@@ -65,21 +82,32 @@ func NewAnnotation(annotation Msg2Client) (*Annotation, error) {
 	// v1, _ := cmd1.Result()
 	// log.Println(v1)
 
-	annotationBin, err := annotation.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
+	// pretty.Println(annotation.Feature)
 
-	pipe := client.Pipeline()
-	pipe.HSet(key, "id", id)
-	pipe.HSet(key, "annotation", annotationBin)
-	pipe.RPush("annotationlist", id)
+	rawjson, _ := annotation.Feature.MarshalJSON()
 
-	_, err = pipe.Exec()
-	if err != nil {
-		return nil, err
-	}
+	// m := GeojsonFeatures{
+	// 	FeatureType: "Feature",
+	// 	Property: GjsonProperties{
+	// 		AnnotationType: "Point",
+	// 	},
+	// 	Geometry: GjsonGeometry{
+	// 		GeometryType: "Point",
+	// 	},
+	// }
 
+	cmd := redis.NewStringCmd("SET", "fleet", "truck", "OBJECT", rawjson)
+
+	tileClient.Process(cmd)
+	v, _ := cmd.Result()
+	log.Println(v)
+
+	cmd1 := redis.NewStringCmd("GET", "fleet", "truck")
+	tileClient.Process(cmd1)
+	v1, _ := cmd1.Result()
+	log.Println(v1)
+
+	id := int64(0)
 	return &Annotation{id}, nil
 }
 
