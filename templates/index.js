@@ -1,6 +1,5 @@
 var gMaps;
-var conn;
-// var gDeleteAnnotation;
+
 function initMap() {
     gMaps = new google.maps.Map(document.getElementById('googleMaps'), {
         center: {
@@ -88,6 +87,39 @@ function initMap() {
         infowindow.close(gMaps);
         selectionToggle = false;
     });
+
+    if (window.WebSocket) {
+        var conn;
+        window.onbeforeunload = function () {
+            conn.close();
+        };
+
+        appendLog("<div><b>" + '\xa0\xa0' + "Connection Established.</b></div>");
+        appendLog("<div>" + '\xa0\xa0' +
+            "> Use the palette tools to beginning annotation. " +
+            "Deselect a tool by selecting it again. " +
+            "Delete an annotation by selecting the Bin tool and clicking on the annoation.</div>");
+
+        conn = new WebSocket("ws://localhost:8080/ws");
+        conn.addEventListener('message', function (e) {
+            var msgServer = JSON.parse(e.data);
+            if (!msgServer.features) {
+                // It doesn't exist, do nothing
+            } else {
+                if (msgServer.features.properties.annotationStatus == "no error") {
+                    gMaps.data.addGeoJson(msgServer.features);
+                }
+            }
+        });
+
+        leafInit(conn);
+
+        conn.onclose = function (evt) {
+            appendLog("<div><b>" + '\xa0\xa0' + "Connection closed.</b></div>");
+        };
+    } else {
+        appendLog("<div><b>" + '\xa0\xa0' + "Please Use a browser that supports WebSockets.</b></div>");
+    }
 }
 
 function deleteAnnotation(gDeleteAnnotation) {
@@ -103,40 +135,12 @@ function deleteAnnotation(gDeleteAnnotation) {
     gDeleteAnnotation = 0;
 }
 
-if (window.WebSocket) {
-    window.onbeforeunload = function () {
-        conn.close();
-    };
 
-    appendLog("<div><b>" + '\xa0\xa0' + "Connection Established.</b></div>");
-    appendLog("<div>" + '\xa0\xa0' +
-        "> Use the palette tools to beginning annotation. " +
-        "Deselect a tool by selecting it again. " +
-        "Delete an annotation by selecting the Bin tool and clicking on the annoation.</div>");
 
-    conn = new WebSocket("ws://localhost:8080/ws");
-    // conn.addEventListener('message', function (e) {
-    //     var msgServer = JSON.parse(e.data);
-    //     if (!msgServer.features) {
-    //         // It doesn't exist, do nothing
-    //     } else {
-    //         if (msgServer.features.properties.annotationStatus == "no error"){
-    //             //TODO:race condition exists between gMaps and websocket events
-    //             gMaps.data.addGeoJson(msgServer.features);
-    //         }
-    //     }
-    // });
 
-    leafInit(conn);
-
-    conn.onclose = function (evt) {
-        appendLog("<div><b>" + '\xa0\xa0' + "Connection closed.</b></div>");
-    };
-} else {
-    appendLog("<div><b>" + '\xa0\xa0' + "Please Use a browser that supports WebSockets.</b></div>");
-}
 
 function leafInit(conn) {
+
     var width = 600;
     var height = 600;
     var leafMaps = L.map('leafMaps', {
@@ -260,21 +264,6 @@ function leafDraw(leafMaps, conn, blueIcon) {
             if (!msgServer.features) {
                 // It doesn't exist, do nothing
             } else {
-                // if (msgServer.features.properties.annotationStatus == "no error"){
-                //     var swapCoordinates = msgServer.features.geometry.coordinates;
-
-                //     if (msgServer.features.geometry.type == "Point") {
-                //         msgServer.features.geometry.coordinates = msgServer.features.properties.pixelCoordinates.Vertex1Array;
-                //         msgServer.features.properties.pixelCoordinates.Vertex1Array = swapCoordinates;
-                //     } else if (msgServer.features.geometry.type == "Polygon") {
-                //         msgServer.features.geometry.coordinates = msgServer.features.properties.pixelCoordinates.Vertex3Array;
-                //         msgServer.features.properties.pixelCoordinates.Vertex3Array = swapCoordinates;
-                //     }
-                //     geojson.addData(msgServer.features);
-                // }else if (msgServer.features.properties.annotationStatus == "no selection"){
-                //     appendLog("<div>" + '\xa0\xa0' + "> Please place marker on ground surfaces.</div>");
-                // }
-
                 leafMaps.removeLayer(e.layer);
                 this.removeEventListener('message', arguments.callee, false);
             }
@@ -291,7 +280,7 @@ function leafDraw(leafMaps, conn, blueIcon) {
         if (!msgServer.features) {
             // It doesn't exist, do nothing
         } else {
-            if (msgServer.features.properties.annotationStatus == "no error"){
+            if (msgServer.features.properties.annotationStatus == "no error") {
                 var swapCoordinates = msgServer.features.geometry.coordinates;
 
                 if (msgServer.features.geometry.type == "Point") {
@@ -302,15 +291,12 @@ function leafDraw(leafMaps, conn, blueIcon) {
                     msgServer.features.properties.pixelCoordinates.Vertex3Array = swapCoordinates;
                 }
                 geojson.addData(msgServer.features);
-                gMaps.data.addGeoJson(msgServer.features);
-            }else if (msgServer.features.properties.annotationStatus == "no selection"){
+            } else if (msgServer.features.properties.annotationStatus == "no selection") {
                 appendLog("<div>" + '\xa0\xa0' + "> Please place marker on ground surfaces.</div>");
             }
             // this.removeEventListener('message', arguments.callee, false);
         }
     });
-
-
 
     geojson.on("click", onFeatureGroupClick);
 }
@@ -346,27 +332,26 @@ function onFeatureGroupClick(e) {
     }
 }
 
-
-
 function onEachFeature(feature, layer) {
 
     var annotationType = feature.properties.annotationType;
     layer.bindPopup('<div style="width:150px; text-align: left;">' + "This feature is a " +
-    annotationType + '. Coordinates are in textbox. Click on the Google Maps Icon for More Options.</div>');
+        annotationType + '. Coordinates are in textbox. Click on the Google Maps Icon for More Options.</div>');
 
     var featureUUID = feature.properties.annotationID;
     layer.on('remove', function () {
         gMaps.data.forEach(function (feature) {
             if (feature.getProperty('annotationID') == featureUUID) {
                 gMaps.data.remove(feature);
+                // TODO: add remove from tile38 and redis
             }
         });
     });
 
     layer.on('popupopen', function () {
-        
+
         gMaps.data.revertStyle();
-        
+
         if (selectionToggle == false) {
             gMaps.data.forEach(function (feature) {
                 if (feature.getProperty('annotationID') == featureUUID) {
@@ -382,21 +367,21 @@ function onEachFeature(feature, layer) {
     });
 
     var clicked = false;
-    layer.on('click', function(){
+    layer.on('click', function () {
         clicked = !clicked;
-        if (clicked){
-            if(feature.geometry.type == "Point"){
+        if (clicked) {
+            if (feature.geometry.type == "Point") {
                 appendLog("<div>" + '\xa0\xa0' +
-                "> Latitude: "+ feature.properties.pixelCoordinates.Vertex1Array[1] +
-                 "<--> Longtitude: "+ feature.properties.pixelCoordinates.Vertex1Array[0] +"</div>");
-            }else if (feature.geometry.type == "Polygon"){
-    
-                for (i =0; i< (feature.properties.pixelCoordinates.Vertex3Array[0]).length-1; i++) {
+                    "> Latitude: " + feature.properties.pixelCoordinates.Vertex1Array[1] +
+                    "<--> Longtitude: " + feature.properties.pixelCoordinates.Vertex1Array[0] + "</div>");
+            } else if (feature.geometry.type == "Polygon") {
+
+                for (i = 0; i < (feature.properties.pixelCoordinates.Vertex3Array[0]).length - 1; i++) {
                     appendLog("<div>" + '\xa0\xa0' +
-                    "> Latitude: "+ feature.properties.pixelCoordinates.Vertex3Array[0][i][1] +
-                     "<--> Longtitude: "+ feature.properties.pixelCoordinates.Vertex3Array[0][i][0] +"</div>");
+                        "> Latitude: " + feature.properties.pixelCoordinates.Vertex3Array[0][i][1] +
+                        "<--> Longtitude: " + feature.properties.pixelCoordinates.Vertex3Array[0][i][0] + "</div>");
                 }
-    
+
             }
         }
     });
