@@ -47,121 +47,77 @@ type Msg2Client struct {
 	Feature *geojson.Feature `json:"features"`
 }
 
-//NewAnnotation constructor FUNCTION of Update struct
-func NewAnnotation(annotation Msg2Client) (*Annotation, error) {
-	// id, err := client.Incr("annotation:next-id").Result() //assign id to assignment to redis
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// key := fmt.Sprintf("annotation:%d", id)
+//NewAnnotation constructor
+func NewAnnotation(annotation Msg2Client, userIDInSession int64) (*Annotation, error) {
+	id, err := client.Incr("annotation:next-id").Result()
+	if err != nil {
+		return nil, err
+	}
+	redisKey := fmt.Sprintf("annotation:%d", id)
+	tile38Key := annotation.Feature.Properties["annotationType"]
+	annotationUUID := annotation.Feature.Properties["annotationID"]
 
-	// annotationBin, err := annotation.MarshalBinary()
-	// if err != nil {
-	// 	return nil, err
-	// }
+	pipe := client.Pipeline()
+	pipe.HSet(redisKey, "id", id)
+	pipe.HSet(redisKey, "user_id", userIDInSession)
+	pipe.HSet(redisKey, "gjson_uuid", annotationUUID)
+	pipe.LPush("annotation_list", id)
 
-	// pipe := client.Pipeline()
-	// pipe.HSet(key, "id", id)
-	// pipe.HSet(key, "annotation", annotationBin)
-	// pipe.RPush("annotationlist", id)
+	pipe.LPush(fmt.Sprintf("user:%d:annotation_list", userIDInSession), id)
 
-	// _, err = pipe.Exec()
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	//TODO:tile38 test
-	//All Tile38 commands should use redis.NewStringCmd(...args) to orgnize parameters,
-	//then, use Process() to request result ,and get result by using Result().
-	// cmd := redis.NewStringCmd("SET", "fleet", "truck", "POINT", 33.32, 115.423)
-	// tileClient.Process(cmd)
-	// v, _ := cmd.Result()
-	// log.Println(v)
-	// cmd1 := redis.NewStringCmd("GET", "fleet", "truck")
-	// tileClient.Process(cmd1)
-	// v1, _ := cmd1.Result()
-	// log.Println(v1)
-
-	// pretty.Println(annotation.Feature)
-
-	rawjson, _ := annotation.Feature.MarshalJSON()
-
-	// m := GeojsonFeatures{
-	// 	FeatureType: "Feature",
-	// 	Property: GjsonProperties{
-	// 		AnnotationType: "Point",
-	// 	},
-	// 	Geometry: GjsonGeometry{
-	// 		GeometryType: "Point",
-	// 	},
-	// }
-
-	cmd := redis.NewStringCmd("SET", "fleet", "truck", "OBJECT", rawjson)
-
-	tileClient.Process(cmd)
-	v, _ := cmd.Result()
-	log.Println(v)
-
-	cmd1 := redis.NewStringCmd("GET", "fleet", "truck")
-	tileClient.Process(cmd1)
-	v1, _ := cmd1.Result()
-	log.Println(v1)
-
-	id := int64(0)
-	return &Annotation{id}, nil
-}
-
-// queryUpdates is a helper function to get updates
-func queryAnnotations(key string) ([]*Annotation, error) {
-	annotationIDs, err := client.LRange(key, 0, -1).Result()
+	_, err = pipe.Exec()
 	if err != nil {
 		return nil, err
 	}
 
-	annotations := make([]*Annotation, len(annotationIDs)) //allocate memmory for update struct by each updateID
+	rawjson, _ := annotation.Feature.MarshalJSON()
+	cmd := redis.NewStringCmd("SET", tile38Key, redisKey, "OBJECT", rawjson)
+	tileClient.Process(cmd)
+	v, _ := cmd.Result()
+	log.Println(v)
+
+	return &Annotation{id}, nil
+}
+
+// GetAnnotationUUIDs is a helper function to get IDs to tile38 json
+func GetAnnotationUUIDs(annotationList string) ([]*Annotation, error) {
+	annotationIDs, err := client.LRange(annotationList, 0, -1).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	annotationsArray := make([]*Annotation, len(annotationIDs))
 	for i, idString := range annotationIDs {
 		id, err := strconv.ParseInt(idString, 10, 64)
 		if err != nil {
+			// TODO:parse error probably
 			return nil, err
 		}
-		annotations[i] = &Annotation{id} //populate update memory space with update by key
+		annotationsArray[i] = &Annotation{id}
 	}
 
-	return annotations, nil
+	return annotationsArray, nil
 }
 
-// MarshalBinary -
-func (m *Msg2Client) MarshalBinary() ([]byte, error) {
-	return json.Marshal(m)
-}
+// //GetAnnotationUUID gets the actual coordinates of the feature based on id
+// func (l *Annotation) GetAnnotationUUID() (Msg2Client, error) {
 
-// UnmarshalBinary -
-func (m *Msg2Client) UnmarshalBinary(data []byte) error {
-	if err := json.Unmarshal(data, &m); err != nil {
-		return err
-	}
+// 	redisKey := fmt.Sprintf("annotation:%d", l.FeatureID)
 
-	return nil
-}
+// 	var annotation Msg2Client
+// 	uuid, err := client.HGet(redisKey, "gjson_uuid").Result()
+// 	if err != nil {
+// 		return annotation, err
+// 	}
 
-//GetAnnotationCntxt gets the actual coordinates of the feature based on id
-func (l *Annotation) GetAnnotationCntxt() (Msg2Client, error) {
+// 	pretty.Println("uuid")
 
-	key := fmt.Sprintf("annotation:%d", l.FeatureID)
+// 	pretty.Println(uuid)
 
-	var annotation Msg2Client
-	cachedAnnotationBin, err := client.HGet(key, "annotation").Result()
-	if err != nil {
-		return annotation, err
-	}
-	err = annotation.UnmarshalBinary([]byte(cachedAnnotationBin))
-	if err != nil {
-		return annotation, err
-	}
-	return annotation, nil
-}
+// 	return annotation, nil
+// }
 
 //GetGlobalAnnotations gets all features in the loaded database (not user specific)
 func GetGlobalAnnotations() ([]*Annotation, error) {
-	return queryAnnotations("annotationlist")
+	return GetAnnotationUUIDs("annotationList")
 }

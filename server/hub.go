@@ -74,6 +74,14 @@ var upgrader = &websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024}
 
 func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
+	session, _ := StoreSessions.Get(r, "session")
+	userIDInterface := session.Values["user_id"]
+	userIDInSession, ok := userIDInterface.(int64)
+	if !ok {
+		util.InternalServerErrorHTTP(w)
+		return
+	}
+
 	wsConn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("error upgrading %s", err)
@@ -92,7 +100,7 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go c.writer(&wg, wsConn)
-	go c.reader(&wg, wsConn, h.projectedTile)
+	go c.reader(&wg, wsConn, h.projectedTile, userIDInSession)
 	wg.Wait()
 	wsConn.Close()
 }

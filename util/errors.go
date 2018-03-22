@@ -1,10 +1,17 @@
 package util
 
 import (
+	"errors"
 	"log"
 	"net/http"
 
 	"github.com/gorilla/websocket"
+)
+
+var (
+	ErrUserNotFound  = errors.New("user not found")
+	UserExists       = errors.New("username exists")
+	BadPrimitivePick = errors.New("Primitive not selected")
 )
 
 func InternalServerError(err error, wsConn *websocket.Conn) {

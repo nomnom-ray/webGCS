@@ -123,7 +123,9 @@ if (window.WebSocket) {
         if (!msgServer.features) {
             // It doesn't exist, do nothing
         } else {
-            gMaps.data.addGeoJson(msgServer.features);
+            if (msgServer.features.properties.annotationStatus == "no error"){
+                gMaps.data.addGeoJson(msgServer.features);
+            }
         }
     });
 
@@ -260,16 +262,20 @@ function leafDraw(leafMaps, conn, blueIcon) {
             if (!msgServer.features) {
                 // It doesn't exist, do nothing
             } else {
-                var swapCoordinates = msgServer.features.geometry.coordinates;
+                if (msgServer.features.properties.annotationStatus == "no error"){
+                    var swapCoordinates = msgServer.features.geometry.coordinates;
 
-                if (msgServer.features.geometry.type == "Point") {
-                    msgServer.features.geometry.coordinates = msgServer.features.properties.pixelCoordinates.Vertex1Array;
-                    msgServer.features.properties.pixelCoordinates.Vertex1Array = swapCoordinates;
-                } else if (msgServer.features.geometry.type == "Polygon") {
-                    msgServer.features.geometry.coordinates = msgServer.features.properties.pixelCoordinates.Vertex3Array;
-                    msgServer.features.properties.pixelCoordinates.Vertex3Array = swapCoordinates;
+                    if (msgServer.features.geometry.type == "Point") {
+                        msgServer.features.geometry.coordinates = msgServer.features.properties.pixelCoordinates.Vertex1Array;
+                        msgServer.features.properties.pixelCoordinates.Vertex1Array = swapCoordinates;
+                    } else if (msgServer.features.geometry.type == "Polygon") {
+                        msgServer.features.geometry.coordinates = msgServer.features.properties.pixelCoordinates.Vertex3Array;
+                        msgServer.features.properties.pixelCoordinates.Vertex3Array = swapCoordinates;
+                    }
+                    geojson.addData(msgServer.features);
+                }else if (msgServer.features.properties.annotationStatus == "no selection"){
+                    appendLog("<div>" + '\xa0\xa0' + "> Please place marker on ground surfaces.</div>");
                 }
-                geojson.addData(msgServer.features);
 
                 leafMaps.removeLayer(e.layer);
                 this.removeEventListener('message', arguments.callee, false);
@@ -332,10 +338,23 @@ function onEachFeature(feature, layer) {
         });
     });
 
-    // layer.on('popupopen', function () { 
-    //     console.log(feature.properties.annotationID);
-
-    // });
+    layer.on('popupopen', function () {
+        
+        gMaps.data.revertStyle();
+        
+        if (selectionToggle == false) {
+            gMaps.data.forEach(function (feature) {
+                if (feature.getProperty('annotationID') == featureUUID) {
+                    gMaps.data.overrideStyle(feature, {
+                        fillColor: '#3fdbff',
+                        fillOpacity: 0.3,
+                        strokeWeight: 3,
+                        strokeColor: '#3fdbff'
+                    });
+                }
+            });
+        }
+    });
 
     var clicked = false;
     layer.on('click', function(){

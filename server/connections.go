@@ -2,7 +2,6 @@ package server
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sync"
 
@@ -24,7 +23,8 @@ type Connection struct {
 	h *Hub
 }
 
-func (c *Connection) reader(wg *sync.WaitGroup, wsConn *websocket.Conn, projectedTile *models.ProjectedTiles) {
+func (c *Connection) reader(wg *sync.WaitGroup, wsConn *websocket.Conn,
+	projectedTile *models.ProjectedTiles, userIDInSession int64) {
 	defer wg.Done()
 	//read message from clients
 	for {
@@ -35,7 +35,7 @@ func (c *Connection) reader(wg *sync.WaitGroup, wsConn *websocket.Conn, projecte
 			break
 		}
 
-		msg2Clients, err := processing(message, projectedTile)
+		msg2Clients, err := processing(message, projectedTile, userIDInSession)
 		if err != nil {
 			return
 		}
@@ -54,7 +54,8 @@ func (c *Connection) writer(wg *sync.WaitGroup, wsConn *websocket.Conn) {
 	}
 }
 
-func processing(message MsgFromClient, projectedTile *models.ProjectedTiles) (models.Msg2Client, error) {
+func processing(message MsgFromClient,
+	projectedTile *models.ProjectedTiles, userIDInSession int64) (models.Msg2Client, error) {
 
 	p := &message.feature.Property
 	g := &message.feature.Geometry
@@ -62,7 +63,6 @@ func processing(message MsgFromClient, projectedTile *models.ProjectedTiles) (mo
 	var err error
 	var messageRX [][]float64
 
-	//TODO:take case of the panic cases to something that won't crash the program
 	switch g.GeometryType {
 	case "Point":
 		err = json.Unmarshal(p.PixCoordinates, &p.Point.Vertex1Array)
@@ -75,6 +75,7 @@ func processing(message MsgFromClient, projectedTile *models.ProjectedTiles) (mo
 			messageRX = append(messageRX, []float64{vertex[0], vertex[1]})
 		}
 	default:
+		//TODO:take case of the panic cases to something that won't crash the program
 		panic("Unknown type")
 	}
 	if err != nil {
@@ -87,10 +88,12 @@ func processing(message MsgFromClient, projectedTile *models.ProjectedTiles) (mo
 		geoCoordinate, err := camera(pixCoor, projectedTile)
 		if err != nil {
 			geoStatus = "no selection"
+			fmt.Println(err)
 		}
 		geoCoordinates = append(geoCoordinates, geoCoordinate)
 	}
 
+	// decode UUID with fmt.Sprintf("%x-%x-%x-%x-%x", randomID[0:4], randomID[4:6], randomID[6:8], randomID[8:10], randomID[10:])
 	annotationID, err := util.AnnotationID()
 	if err != nil {
 		return msg2Client, err
@@ -100,12 +103,15 @@ func processing(message MsgFromClient, projectedTile *models.ProjectedTiles) (mo
 	var lines orb.LineString
 	var rings orb.Ring
 	var polygon orb.Polygon
-	for _, geoCoordinate := range geoCoordinates {
-		points = orb.Point{geoCoordinate[0], geoCoordinate[1]}
-		lines = append(lines, points)
-		rings = orb.Ring(lines)
+
+	if geoStatus == "no error" {
+		for _, geoCoordinate := range geoCoordinates {
+			points = orb.Point{geoCoordinate[0], geoCoordinate[1]}
+			lines = append(lines, points)
+			rings = orb.Ring(lines)
+		}
+		polygon = append(polygon, rings)
 	}
-	polygon = append(polygon, rings)
 
 	var feature2Clnts *geojson.Feature
 
@@ -133,8 +139,10 @@ func processing(message MsgFromClient, projectedTile *models.ProjectedTiles) (mo
 
 	msg2Client.Feature = feature2Clnts
 
-	err = PostNewFeatures(msg2Client)
-	if err != nil {
+	err = PostNewFeatures(msg2Client, userIDInSession)
+	if err == util.BadPrimitivePick {
+		fmt.Println("feature not stored in DB")
+	} else if err != nil {
 		return msg2Client, err
 	}
 
@@ -151,28 +159,27 @@ func camera(pixCoor []float64, projectedTile *models.ProjectedTiles) ([]float64,
 		geoCoordinate[1] = util.RoundToF7(vertexSelected.Texture.X)
 		// geoCoordinate.Elevation = util.RoundToF7(vertexSelected.Texture.Y)
 	} else {
-		err := errors.New("picking: primitive not selected")
-		if err != nil {
-			fmt.Println(err)
-			return nil, err
-		}
+		return nil, util.BadPrimitivePick
 	}
 	return geoCoordinate, nil
 }
 
+// TODO:sync to DB when user is set up tile38
 func (c *Connection) syncToDatabase(wsConn *websocket.Conn) error {
 
+	//TODO: pretty.Println("syncToDatabase")
+
 	var msg2Client models.Msg2Client
-	annotations, err := models.GetGlobalAnnotations()
+	annotationsArray, err := models.GetGlobalAnnotations()
 	if err != nil {
 		util.InternalServerError(err, wsConn)
 		return err
 	}
-	for _, annotation := range annotations {
-		msg2Client, err = annotation.GetAnnotationCntxt()
-		if err != nil {
-			return err
-		}
+	// for _, annotation := range annotationsArray {
+	// 	msg2Client, err = annotation.GetAnnotationUUID()
+	// 	if err != nil {
+	// 		return err
+	// 	}
 
 		c.h.connectionsMx.RLock()
 		err = wsConn.WriteJSON(msg2Client)
@@ -186,7 +193,12 @@ func (c *Connection) syncToDatabase(wsConn *websocket.Conn) error {
 }
 
 //PostNewFeatures pushes primitive types to the model for storing in redis
-func PostNewFeatures(msg2DB models.Msg2Client) error {
-	_, err := models.NewAnnotation(msg2DB)
-	return err
+func PostNewFeatures(msg2DB models.Msg2Client, userIDInSession int64) error {
+
+	if msg2DB.Feature.Properties["annotationType"] != "Point" &&
+		msg2DB.Feature.Properties["annotationStatus"] == "no error" {
+		_, err := models.NewAnnotation(msg2DB, userIDInSession)
+		return err
+	}
+	return util.BadPrimitivePick
 }
