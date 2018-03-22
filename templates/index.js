@@ -87,7 +87,6 @@ function initMap() {
         infowindow.close(gMaps);
         selectionToggle = false;
     });
-
 }
 
 function deleteAnnotation(gDeleteAnnotation) {
@@ -120,10 +119,14 @@ if (window.WebSocket) {
     conn = new WebSocket("ws://localhost:8080/ws");
     conn.addEventListener('message', function (e) {
         var msgServer = JSON.parse(e.data);
+        
+        console.log("msgServer");
+
         if (!msgServer.features) {
             // It doesn't exist, do nothing
         } else {
             if (msgServer.features.properties.annotationStatus == "no error"){
+                //TODO:race condition exists between gMaps and websocket events
                 gMaps.data.addGeoJson(msgServer.features);
             }
         }

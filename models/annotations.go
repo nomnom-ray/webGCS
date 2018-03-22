@@ -55,12 +55,13 @@ func NewAnnotation(annotation Msg2Client, userIDInSession int64) (*Annotation, e
 	}
 	redisKey := fmt.Sprintf("annotation:%d", id)
 	tile38Key := annotation.Feature.Properties["annotationType"]
-	annotationUUID := annotation.Feature.Properties["annotationID"]
+	// annotationUUID := annotation.Feature.Properties["annotationID"]
 
 	pipe := client.Pipeline()
 	pipe.HSet(redisKey, "id", id)
-	pipe.HSet(redisKey, "user_id", userIDInSession)
-	pipe.HSet(redisKey, "gjson_uuid", annotationUUID)
+	pipe.HSet(redisKey, "user_id", userIDInSession) //userIDInSession is user.id; not name; need user:+id string
+	// pipe.HSet(redisKey, "gjson_uuid", annotationUUID)
+	pipe.HSet(redisKey, "type", tile38Key)
 	pipe.LPush("annotation_list", id)
 
 	pipe.LPush(fmt.Sprintf("user:%d:annotation_list", userIDInSession), id)
@@ -71,7 +72,7 @@ func NewAnnotation(annotation Msg2Client, userIDInSession int64) (*Annotation, e
 	}
 
 	rawjson, _ := annotation.Feature.MarshalJSON()
-	cmd := redis.NewStringCmd("SET", tile38Key, redisKey, "OBJECT", rawjson)
+	cmd := redis.NewStringCmd("SET", tile38Key, id, "OBJECT", rawjson)
 	tileClient.Process(cmd)
 	v, _ := cmd.Result()
 	log.Println(v)
@@ -79,8 +80,8 @@ func NewAnnotation(annotation Msg2Client, userIDInSession int64) (*Annotation, e
 	return &Annotation{id}, nil
 }
 
-// GetAnnotationUUIDs is a helper function to get IDs to tile38 json
-func GetAnnotationUUIDs(annotationList string) ([]*Annotation, error) {
+// GetAnnotationIDs is a helper function to get IDs to tile38 json
+func GetAnnotationIDs(annotationList string) ([]*Annotation, error) {
 	annotationIDs, err := client.LRange(annotationList, 0, -1).Result()
 	if err != nil {
 		return nil, err
@@ -99,25 +100,33 @@ func GetAnnotationUUIDs(annotationList string) ([]*Annotation, error) {
 	return annotationsArray, nil
 }
 
-// //GetAnnotationUUID gets the actual coordinates of the feature based on id
-// func (l *Annotation) GetAnnotationUUID() (Msg2Client, error) {
+//GetAnnotationContext gets the actual coordinates of the feature based on id
+func (l *Annotation) GetAnnotationContext() (Msg2Client, error) {
 
-// 	redisKey := fmt.Sprintf("annotation:%d", l.FeatureID)
+	var annotation Msg2Client
+	redisKey := fmt.Sprintf("annotation:%d", l.FeatureID)
+	// uuid, err := client.HGet(redisKey, "gjson_uuid").Bytes() //.Byte() is a go-redis method
+	tile38Key, err := client.HGet(redisKey, "type").Result()
+	if err != nil {
+		return annotation, err
+	}
+	cmd := redis.NewStringCmd("GET", tile38Key, l.FeatureID, "OBJECT")
+	tileClient.Process(cmd)
+	rawjson, err := cmd.Result()
+	if err != nil {
+		return annotation, err
+	}
 
-// 	var annotation Msg2Client
-// 	uuid, err := client.HGet(redisKey, "gjson_uuid").Result()
-// 	if err != nil {
-// 		return annotation, err
-// 	}
+	err = json.Unmarshal([]byte(rawjson), &annotation.Feature)
+	if err != nil {
+		return annotation, err
+	}
+	// pretty.Println(annotation.Feature)
 
-// 	pretty.Println("uuid")
-
-// 	pretty.Println(uuid)
-
-// 	return annotation, nil
-// }
+	return annotation, nil
+}
 
 //GetGlobalAnnotations gets all features in the loaded database (not user specific)
 func GetGlobalAnnotations() ([]*Annotation, error) {
-	return GetAnnotationUUIDs("annotationList")
+	return GetAnnotationIDs("annotation_list")
 }

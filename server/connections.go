@@ -164,10 +164,7 @@ func camera(pixCoor []float64, projectedTile *models.ProjectedTiles) ([]float64,
 	return geoCoordinate, nil
 }
 
-// TODO:sync to DB when user is set up tile38
 func (c *Connection) syncToDatabase(wsConn *websocket.Conn) error {
-
-	//TODO: pretty.Println("syncToDatabase")
 
 	var msg2Client models.Msg2Client
 	annotationsArray, err := models.GetGlobalAnnotations()
@@ -175,11 +172,12 @@ func (c *Connection) syncToDatabase(wsConn *websocket.Conn) error {
 		util.InternalServerError(err, wsConn)
 		return err
 	}
-	// for _, annotation := range annotationsArray {
-	// 	msg2Client, err = annotation.GetAnnotationUUID()
-	// 	if err != nil {
-	// 		return err
-	// 	}
+
+	for _, annotation := range annotationsArray {
+		msg2Client, err = annotation.GetAnnotationContext()
+		if err != nil {
+			return err
+		}
 
 		c.h.connectionsMx.RLock()
 		err = wsConn.WriteJSON(msg2Client)
