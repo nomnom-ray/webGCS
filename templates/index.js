@@ -1,4 +1,5 @@
 var gMaps;
+var conn;
 // var gDeleteAnnotation;
 function initMap() {
     gMaps = new google.maps.Map(document.getElementById('googleMaps'), {
@@ -90,7 +91,6 @@ function initMap() {
 }
 
 function deleteAnnotation(gDeleteAnnotation) {
-
     var featureUUID = gDeleteAnnotation.getProperty("annotationID");
     geojson.eachLayer(function (layer) {
         // layer.feature is the original geojson feature
@@ -104,8 +104,6 @@ function deleteAnnotation(gDeleteAnnotation) {
 }
 
 if (window.WebSocket) {
-
-    var conn;
     window.onbeforeunload = function () {
         conn.close();
     };
@@ -117,20 +115,17 @@ if (window.WebSocket) {
         "Delete an annotation by selecting the Bin tool and clicking on the annoation.</div>");
 
     conn = new WebSocket("ws://localhost:8080/ws");
-    conn.addEventListener('message', function (e) {
-        var msgServer = JSON.parse(e.data);
-        
-        console.log("msgServer");
-
-        if (!msgServer.features) {
-            // It doesn't exist, do nothing
-        } else {
-            if (msgServer.features.properties.annotationStatus == "no error"){
-                //TODO:race condition exists between gMaps and websocket events
-                gMaps.data.addGeoJson(msgServer.features);
-            }
-        }
-    });
+    // conn.addEventListener('message', function (e) {
+    //     var msgServer = JSON.parse(e.data);
+    //     if (!msgServer.features) {
+    //         // It doesn't exist, do nothing
+    //     } else {
+    //         if (msgServer.features.properties.annotationStatus == "no error"){
+    //             //TODO:race condition exists between gMaps and websocket events
+    //             gMaps.data.addGeoJson(msgServer.features);
+    //         }
+    //     }
+    // });
 
     leafInit(conn);
 
@@ -265,20 +260,20 @@ function leafDraw(leafMaps, conn, blueIcon) {
             if (!msgServer.features) {
                 // It doesn't exist, do nothing
             } else {
-                if (msgServer.features.properties.annotationStatus == "no error"){
-                    var swapCoordinates = msgServer.features.geometry.coordinates;
+                // if (msgServer.features.properties.annotationStatus == "no error"){
+                //     var swapCoordinates = msgServer.features.geometry.coordinates;
 
-                    if (msgServer.features.geometry.type == "Point") {
-                        msgServer.features.geometry.coordinates = msgServer.features.properties.pixelCoordinates.Vertex1Array;
-                        msgServer.features.properties.pixelCoordinates.Vertex1Array = swapCoordinates;
-                    } else if (msgServer.features.geometry.type == "Polygon") {
-                        msgServer.features.geometry.coordinates = msgServer.features.properties.pixelCoordinates.Vertex3Array;
-                        msgServer.features.properties.pixelCoordinates.Vertex3Array = swapCoordinates;
-                    }
-                    geojson.addData(msgServer.features);
-                }else if (msgServer.features.properties.annotationStatus == "no selection"){
-                    appendLog("<div>" + '\xa0\xa0' + "> Please place marker on ground surfaces.</div>");
-                }
+                //     if (msgServer.features.geometry.type == "Point") {
+                //         msgServer.features.geometry.coordinates = msgServer.features.properties.pixelCoordinates.Vertex1Array;
+                //         msgServer.features.properties.pixelCoordinates.Vertex1Array = swapCoordinates;
+                //     } else if (msgServer.features.geometry.type == "Polygon") {
+                //         msgServer.features.geometry.coordinates = msgServer.features.properties.pixelCoordinates.Vertex3Array;
+                //         msgServer.features.properties.pixelCoordinates.Vertex3Array = swapCoordinates;
+                //     }
+                //     geojson.addData(msgServer.features);
+                // }else if (msgServer.features.properties.annotationStatus == "no selection"){
+                //     appendLog("<div>" + '\xa0\xa0' + "> Please place marker on ground surfaces.</div>");
+                // }
 
                 leafMaps.removeLayer(e.layer);
                 this.removeEventListener('message', arguments.callee, false);
@@ -290,6 +285,33 @@ function leafDraw(leafMaps, conn, blueIcon) {
             appendLog("<div><b>" + '\xa0\xa0' + "Message not sent.</b></div>");
         }
     });
+
+    conn.addEventListener('message', function (event) {
+        var msgServer = JSON.parse(event.data);
+        if (!msgServer.features) {
+            // It doesn't exist, do nothing
+        } else {
+            if (msgServer.features.properties.annotationStatus == "no error"){
+                var swapCoordinates = msgServer.features.geometry.coordinates;
+
+                if (msgServer.features.geometry.type == "Point") {
+                    msgServer.features.geometry.coordinates = msgServer.features.properties.pixelCoordinates.Vertex1Array;
+                    msgServer.features.properties.pixelCoordinates.Vertex1Array = swapCoordinates;
+                } else if (msgServer.features.geometry.type == "Polygon") {
+                    msgServer.features.geometry.coordinates = msgServer.features.properties.pixelCoordinates.Vertex3Array;
+                    msgServer.features.properties.pixelCoordinates.Vertex3Array = swapCoordinates;
+                }
+                geojson.addData(msgServer.features);
+                gMaps.data.addGeoJson(msgServer.features);
+            }else if (msgServer.features.properties.annotationStatus == "no selection"){
+                appendLog("<div>" + '\xa0\xa0' + "> Please place marker on ground surfaces.</div>");
+            }
+            // this.removeEventListener('message', arguments.callee, false);
+        }
+    });
+
+
+
     geojson.on("click", onFeatureGroupClick);
 }
 
