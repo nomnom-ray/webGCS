@@ -60,3 +60,13 @@ func CheckUserExist(username string) (bool, error) {
 	}
 	return exists, nil
 }
+
+func CheckUserDB(userIDInSession int64) bool {
+
+	key := fmt.Sprintf("user:%d", userIDInSession)
+	dbExists := client.Exists(key).Val()
+	if dbExists < 1 {
+		return false
+	}
+	return true
+}

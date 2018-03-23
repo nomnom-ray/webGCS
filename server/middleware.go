@@ -4,6 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gorilla/sessions"
+	"github.com/nomnom-ray/webGCS/models"
+	"github.com/nomnom-ray/webGCS/util"
 )
 
 //storeSessions use cookies (from other ways) to store session of a user
@@ -20,6 +22,20 @@ func AuthRequired(h http.HandlerFunc) http.HandlerFunc {
 			http.Redirect(w, r, "/register", 302) //go to login page if no session
 			return                                //return stops the process; doesn't proceed in main
 		}
+
+		userIDInterface := session.Values["user_id"]
+		userIDInSession, ok := userIDInterface.(int64)
+		if !ok {
+			util.InternalServerErrorHTTP(w)
+			return
+		}
+		dbExist := models.CheckUserDB(userIDInSession)
+		if !dbExist {
+			delete(session.Values, "user_id")
+			session.Save(r, w)
+			http.Redirect(w, r, "/register", 302)
+		}
+
 		//execute the handler
 		h.ServeHTTP(w, r)
 	}

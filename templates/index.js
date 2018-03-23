@@ -1,4 +1,5 @@
 var gMaps;
+var conn;
 
 function initMap() {
     gMaps = new google.maps.Map(document.getElementById('googleMaps'), {
@@ -68,7 +69,7 @@ function initMap() {
             infowindow.setContent(
                 '<div style="width:150px; text-align: left;">' + "This feature is a " +
                 annotationType + '. Coordinates in textbox.</div><br/>' +
-                '<button id="deleteButton" onclick="deleteAnnotation(gDeleteAnnotation);">Delete</button>' +
+                '<button id="deleteButton" onclick="deleteAnnotation(gDeleteAnnotation,conn);">Delete</button>' +
                 '<button id="navButton" onclick="navigation()">Navigate</button>'
             );
 
@@ -89,7 +90,7 @@ function initMap() {
     });
 
     if (window.WebSocket) {
-        var conn;
+
         window.onbeforeunload = function () {
             conn.close();
         };
@@ -122,7 +123,7 @@ function initMap() {
     }
 }
 
-function deleteAnnotation(gDeleteAnnotation) {
+function deleteAnnotation(gDeleteAnnotation,conn) {
     var featureUUID = gDeleteAnnotation.getProperty("annotationID");
     geojson.eachLayer(function (layer) {
         // layer.feature is the original geojson feature
@@ -256,8 +257,10 @@ function leafDraw(leafMaps, conn, blueIcon) {
             pixCoordinates = e.layer._latlngs;
             annotationType = "LotParking";
         }
-        var message4Server = createGEOJSON(geometryType, pixCoordinates, annotationType);
-        message4Server = JSON.stringify(message4Server);
+        var messageContent = createGEOJSON(geometryType, pixCoordinates, annotationType);
+        var messageType = "annotationStore";
+
+        message4Server = JSON.stringify({messagetype:messageType,messagecontent:messageContent});
 
         conn.addEventListener('message', function (evt) {
             var msgServer = JSON.parse(evt.data);
@@ -342,8 +345,18 @@ function onEachFeature(feature, layer) {
     layer.on('remove', function () {
         gMaps.data.forEach(function (feature) {
             if (feature.getProperty('annotationID') == featureUUID) {
+
+                if (annotationType != "Point"){
+                    var messageType = "annotationRemove";
+                    var messageContent = {properties:{annotationID:featureUUID,annotationType:annotationType}};
+                    message4Server = JSON.stringify({messagetype:messageType,messagecontent:messageContent});
+                    
+                    var sent = toServer(message4Server, conn);
+                    if (!sent) {
+                        appendLog("<div><b>" + '\xa0\xa0' + "Message not sent.</b></div>");
+                    }
+                }
                 gMaps.data.remove(feature);
-                // TODO: add remove from tile38 and redis
             }
         });
     });

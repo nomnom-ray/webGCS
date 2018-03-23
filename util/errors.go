@@ -9,9 +9,12 @@ import (
 )
 
 var (
-	ErrUserNotFound  = errors.New("user not found")
-	UserExists       = errors.New("username exists")
-	BadPrimitivePick = errors.New("Primitive not selected")
+	ErrUserNotFound       = errors.New("user not found")
+	ErrUserExists         = errors.New("username exists")
+	ErrBadPrimitivePick   = errors.New("Primitive not selected")
+	ErrAnnotationNotFound = errors.New("annotation not in redis")
+	ErrDeleting           = errors.New("annotation not removed or not exist")
+	ErrDeletePoint        = errors.New("deleting a point")
 )
 
 func InternalServerError(err error, wsConn *websocket.Conn) {

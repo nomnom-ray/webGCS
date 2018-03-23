@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -13,7 +14,8 @@ import (
 )
 
 type MsgFromClient struct {
-	feature *models.GeojsonFeatures
+	MsgType    string                  `json:"messagetype"`
+	MsgContent *models.GeojsonFeatures `json:"messagecontent"`
 }
 
 type Connection struct {
@@ -29,7 +31,7 @@ func (c *Connection) reader(wg *sync.WaitGroup, wsConn *websocket.Conn,
 	//read message from clients
 	for {
 		var message MsgFromClient
-		err := wsConn.ReadJSON(&message.feature)
+		err := wsConn.ReadJSON(&message)
 		if err != nil {
 			fmt.Println(err)
 			break
@@ -37,9 +39,18 @@ func (c *Connection) reader(wg *sync.WaitGroup, wsConn *websocket.Conn,
 
 		msg2Clients, err := processing(message, projectedTile, userIDInSession)
 		if err != nil {
-			return
+			switch err {
+			case util.ErrDeleting:
+				log.Println(err)
+				return
+			case util.ErrAnnotationNotFound:
+				log.Println(err)
+				return
+			default:
+				log.Println("something wrong in processing:", err)
+				return
+			}
 		}
-
 		c.h.broadcast <- msg2Clients
 	}
 }
@@ -55,10 +66,41 @@ func (c *Connection) writer(wg *sync.WaitGroup, wsConn *websocket.Conn) {
 }
 
 func processing(message MsgFromClient,
+	projectedTile *models.ProjectedTiles, userIDInSession int64) (msg2Clients models.Msg2Client, err error) {
+
+	switch message.MsgType {
+	case "annotationRemove":
+		if message.MsgContent.Geometry.GeometryType == "Point" {
+			return msg2Clients, util.ErrDeletePoint
+		}
+		_, err = annotationRemove(message, projectedTile, userIDInSession)
+		return msg2Clients, err
+	case "annotationStore":
+		msg2Clients, err = annotationStore(message, projectedTile, userIDInSession)
+		return msg2Clients, err
+	default:
+		//TODO:take case of the panic cases to something that won't crash the program
+		panic("Unknown message type from client")
+	}
+}
+
+func annotationRemove(message MsgFromClient,
+	projectedTile *models.ProjectedTiles, userIDInSession int64) (msg2Clients models.Msg2Client, err error) {
+
+	err = models.Remove1Annotation(message.MsgContent.Property, userIDInSession)
+	if err == util.ErrAnnotationNotFound {
+		log.Println(err)
+	} else if err != nil {
+		return
+	}
+	return
+}
+
+func annotationStore(message MsgFromClient,
 	projectedTile *models.ProjectedTiles, userIDInSession int64) (models.Msg2Client, error) {
 
-	p := &message.feature.Property
-	g := &message.feature.Geometry
+	p := &message.MsgContent.Property
+	g := &message.MsgContent.Geometry
 	var msg2Client models.Msg2Client
 	var err error
 	var messageRX [][]float64
@@ -88,12 +130,11 @@ func processing(message MsgFromClient,
 		geoCoordinate, err := camera(pixCoor, projectedTile)
 		if err != nil {
 			geoStatus = "no selection"
-			fmt.Println(err)
+			log.Println(err)
 		}
 		geoCoordinates = append(geoCoordinates, geoCoordinate)
 	}
 
-	// decode UUID with fmt.Sprintf("%x-%x-%x-%x-%x", randomID[0:4], randomID[4:6], randomID[6:8], randomID[8:10], randomID[10:])
 	annotationID, err := util.AnnotationID()
 	if err != nil {
 		return msg2Client, err
@@ -140,8 +181,8 @@ func processing(message MsgFromClient,
 	msg2Client.Feature = feature2Clnts
 
 	err = PostNewFeatures(msg2Client, userIDInSession)
-	if err == util.BadPrimitivePick {
-		fmt.Println("feature not stored in DB")
+	if err == util.ErrBadPrimitivePick {
+		// log.Println("feature not stored in DB")
 	} else if err != nil {
 		return msg2Client, err
 	}
@@ -159,7 +200,7 @@ func camera(pixCoor []float64, projectedTile *models.ProjectedTiles) ([]float64,
 		geoCoordinate[1] = util.RoundToF7(vertexSelected.Texture.X)
 		// geoCoordinate.Elevation = util.RoundToF7(vertexSelected.Texture.Y)
 	} else {
-		return nil, util.BadPrimitivePick
+		return nil, util.ErrBadPrimitivePick
 	}
 	return geoCoordinate, nil
 }
@@ -198,5 +239,5 @@ func PostNewFeatures(msg2DB models.Msg2Client, userIDInSession int64) error {
 		_, err := models.NewAnnotation(msg2DB, userIDInSession)
 		return err
 	}
-	return util.BadPrimitivePick
+	return util.ErrBadPrimitivePick
 }

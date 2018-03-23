@@ -3,8 +3,10 @@ package models
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"strconv"
+
+	"github.com/nomnom-ray/webGCS/util"
+	"github.com/satori/go.uuid"
 
 	"github.com/go-redis/redis"
 	"github.com/paulmach/orb/geojson"
@@ -24,6 +26,7 @@ type GeojsonFeatures struct {
 type GjsonProperties struct {
 	AnnotationType string          `json:"annotationType"`
 	PixCoordinates json.RawMessage `json:"pixelCoordinates"`
+	AnnotationID   string          `json:"annotationID"`
 	Point          Point
 	Line           Line
 	Polygon        Polygon
@@ -55,15 +58,15 @@ func NewAnnotation(annotation Msg2Client, userIDInSession int64) (*Annotation, e
 	}
 	redisKey := fmt.Sprintf("annotation:%d", id)
 	tile38Key := annotation.Feature.Properties["annotationType"]
-	// annotationUUID := annotation.Feature.Properties["annotationID"]
+	annotationUUID := annotation.Feature.Properties["annotationID"].(uuid.UUID).String()
 
 	pipe := client.Pipeline()
 	pipe.HSet(redisKey, "id", id)
 	pipe.HSet(redisKey, "user_id", userIDInSession) //userIDInSession is user.id; not name; need user:+id string
-	// pipe.HSet(redisKey, "gjson_uuid", annotationUUID)
 	pipe.HSet(redisKey, "type", tile38Key)
-	pipe.LPush("annotation_list", id)
+	pipe.HSet("id:by-uuid", annotationUUID, id)
 
+	pipe.LPush("annotation_list", id)
 	pipe.LPush(fmt.Sprintf("user:%d:annotation_list", userIDInSession), id)
 
 	_, err = pipe.Exec()
@@ -74,10 +77,51 @@ func NewAnnotation(annotation Msg2Client, userIDInSession int64) (*Annotation, e
 	rawjson, _ := annotation.Feature.MarshalJSON()
 	cmd := redis.NewStringCmd("SET", tile38Key, id, "OBJECT", rawjson)
 	tileClient.Process(cmd)
-	v, _ := cmd.Result()
-	log.Println(v)
+	// v, _ := cmd.Result()
+	// log.Println(v)
 
 	return &Annotation{id}, nil
+}
+
+func Remove1Annotation(property GjsonProperties, userIDInSession int64) error {
+
+	idFromUUID, err := GetIDbyUUID(property.AnnotationID)
+	if err != nil {
+		return err
+	}
+	redisKey := fmt.Sprintf("annotation:%d", idFromUUID)
+	tile38Key := property.AnnotationType
+
+	keyDelCheck := client.Del(redisKey).Val()
+	if keyDelCheck < 1 {
+		return util.ErrDeleting
+	}
+
+	globalListDelCheck := client.LRem("annotation_list", 1, idFromUUID).Val()
+	if globalListDelCheck < 1 {
+		return util.ErrDeleting
+	}
+
+	userListDelCheck := client.LRem(fmt.Sprintf("user:%d:annotation_list", userIDInSession), 1, idFromUUID).Val()
+	if userListDelCheck < 1 {
+		return util.ErrDeleting
+	}
+
+	cmd := redis.NewStringCmd("DEL", tile38Key, idFromUUID)
+	tileClient.Process(cmd)
+
+	return nil
+}
+
+func GetIDbyUUID(annotationID string) (int64, error) {
+
+	id, err := client.HGet("id:by-uuid", annotationID).Int64()
+	if err == redis.Nil {
+		return id, util.ErrAnnotationNotFound
+	} else if err != nil {
+		return id, err
+	}
+	return id, err
 }
 
 // GetAnnotationIDs is a helper function to get IDs to tile38 json
