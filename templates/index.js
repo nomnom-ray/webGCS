@@ -101,7 +101,7 @@ function initMap() {
             "Deselect a tool by selecting it again. " +
             "Delete an annotation by selecting the Bin tool and clicking on the annoation.</div>");
 
-        conn = new WebSocket("ws://localhost:8080/ws");
+        conn = new WebSocket("ws://" + window.location.hostname + "/ws");
         conn.addEventListener('message', function (e) {
             var msgServer = JSON.parse(e.data);
             if (!msgServer.features) {
@@ -155,7 +155,7 @@ function leafInit(conn) {
     var northEast = leafMaps.unproject([0, width]);
     var southWest = leafMaps.unproject([height, 0]);
     var imageBounds = new L.LatLngBounds(southWest, northEast);
-    var imageUrl = 'http://localhost:8080/templates/rBW-loc43_4516288_-80_4961367-fov80-heading205-pitch-10.jpg';
+    var imageUrl = 'http://' + window.location.hostname + '/templates/rBW-loc43_4516288_-80_4961367-fov80-heading205-pitch-10.jpg';
 
     leafMaps.setMaxBounds(imageBounds);
     L.imageOverlay(imageUrl, imageBounds).addTo(leafMaps);
