@@ -28,7 +28,7 @@ function initMap() {
         fillOpacity: 0.3,
         strokeWeight: 1,
         strokeColor: '#3794ff',
-        // icon: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png'
+        // iconUrl: 'http://localhost:8080/templates/js-lib/leaflet-color-markers/master/img/marker-icon-2x-blue.png'
     });
 
     var selectionToggle = false;
@@ -100,7 +100,10 @@ function initMap() {
             "> The palette toolbar contains a marker and a polygon annotation tool. " +
             "Deselect a tool by selecting it again. " +
             "Delete an annotation by selecting the Bin tool and clicking on the annoation. " +
-            "The annotations are selectable by clicking on them.</div>");
+            "The annotations are selectable by clicking on them, " +
+            "but please wait until the annotation syncs to Google Maps.</div>");
+
+        appendLog("<div><b>" + '\xa0\xa0' + "> The sync is slow due to the use of a free slow server.</b></div>");
 
         conn = new WebSocket("ws://localhost:8080/ws");
         // conn = new WebSocket("ws://" + window.location.hostname + "/ws");
@@ -163,8 +166,8 @@ function leafInit(conn) {
     leafMaps.dragging.disable();
 
     var blueIcon = new L.Icon({
-        iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+        iconUrl: 'http://localhost:8080/templates/js-lib/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+        shadowUrl: 'http://localhost:8080/templates/js-lib/img/marker-shadow.png',
         iconSize: [25, 41],
         iconAnchor: [12, 41],
         popupAnchor: [1, -34],
@@ -194,15 +197,18 @@ function leafDrawInit(leafMaps, blueIcon) {
         },
         templineStyle: {
             color: '#3794ff',
+            opacity: 0.5,
         },
         hintlineStyle: {
             color: '#3794ff',
             dashArray: [5, 5],
+            opacity: 0.5,
         },
         pathOptions: {
             color: '#3794ff',
+            opacity: 0.5,
             fillColor: '#3794ff',
-            fillOpacity: 0.3,
+            fillOpacity: 0.2,
         },
     };
     leafMaps.pm.addControls(options);
