@@ -48,8 +48,8 @@ function initMap() {
             var annotationType = e.feature.getProperty("annotationType");
             if (annotationType == "Point") {
                 e.feature.getGeometry().forEachLatLng(function (path) {
-                    appendLog("<div>" + '\xa0\xa0' +
-                        "> Latitude: " + path.lat() + "<--> Longtitude: " + path.lng() + "</div>");
+                //     appendLog("<div>" + '\xa0\xa0' +
+                //         "> Latitude: " + path.lat() + ";Longtitude: " + path.lng() + "</div>");
                 });
                 infowindow.setPosition(e.feature.getGeometry().get());
                 infowindow.setOptions({
@@ -57,8 +57,8 @@ function initMap() {
                 });
             } else if (annotationType == "LotParking") {
                 e.feature.getGeometry().forEachLatLng(function (path) {
-                    appendLog("<div>" + '\xa0\xa0' +
-                        "> Latitude: " + path.lat() + "<--> Longtitude: " + path.lng() + "</div>");
+                //     appendLog("<div>" + '\xa0\xa0' +
+                //         ">Polygon corner " +y+ "<--> Latitude: " + path.lat() + "; Longtitude: " + path.lng() + "</div>");
                 });
                 infowindow.setPosition(e.latLng);
                 infowindow.setOptions({
@@ -68,9 +68,9 @@ function initMap() {
 
             infowindow.setContent(
                 '<div style="width:150px; text-align: left;">' + "This feature is a " +
-                annotationType + '. Coordinates in textbox.</div><br/>' +
-                '<button id="deleteButton" onclick="deleteAnnotation(gDeleteAnnotation,conn);">Delete</button>' +
-                '<button id="navButton" onclick="navigation()">Navigate</button>'
+                annotationType + '. Evaluate accuracy by turning on satellite view on the upper-right corner.</div><br/>' +
+                '<button id="deleteButton" onclick="deleteAnnotation(gDeleteAnnotation,conn);">Delete</button>'// +
+                //'<button id="navButton" onclick="navigation()">Navigate</button>'
             );
 
             infowindow.open(gMaps);
@@ -95,13 +95,15 @@ function initMap() {
             conn.close();
         };
 
-        appendLog("<div><b>" + '\xa0\xa0' + "Connection Established.</b></div>");
+        appendLog("<div><b>" + '\xa0\xa0' + "Connection Established (Instructions Below).</b></div>");
         appendLog("<div>" + '\xa0\xa0' +
-            "> Use the palette tools to beginning annotation. " +
+            "> The palette toolbar contains a marker and a polygon annotation tool. " +
             "Deselect a tool by selecting it again. " +
-            "Delete an annotation by selecting the Bin tool and clicking on the annoation.</div>");
+            "Delete an annotation by selecting the Bin tool and clicking on the annoation. " +
+            "The annotations are selectable by clicking on them.</div>");
 
-        conn = new WebSocket("ws://" + window.location.hostname + "/ws");
+        conn = new WebSocket("ws://localhost:8080/ws");
+        // conn = new WebSocket("ws://" + window.location.hostname + "/ws");
         conn.addEventListener('message', function (e) {
             var msgServer = JSON.parse(e.data);
             if (!msgServer.features) {
@@ -136,17 +138,13 @@ function deleteAnnotation(gDeleteAnnotation,conn) {
     gDeleteAnnotation = 0;
 }
 
-
-
-
-
 function leafInit(conn) {
 
     var width = 600;
     var height = 600;
     var leafMaps = L.map('leafMaps', {
-        // minZoom: 1,
-        // maxZoom: 1,
+        minZoom: 0,
+        maxZoom: 0,
         zoom: 0,
         zoomControl: false,
         center: [300, 300],
@@ -155,7 +153,9 @@ function leafInit(conn) {
     var northEast = leafMaps.unproject([0, width]);
     var southWest = leafMaps.unproject([height, 0]);
     var imageBounds = new L.LatLngBounds(southWest, northEast);
-    var imageUrl = 'http://' + window.location.hostname + '/templates/rBW-loc43_4516288_-80_4961367-fov80-heading205-pitch-10.jpg';
+    // var imageUrl = 'http://' + window.location.hostname + '/templates/rBW-loc43_4516288_-80_4961367-fov80-heading205-pitch-10.jpg';
+    var imageUrl = 'http://localhost:8080/templates/rBW-loc43_4516288_-80_4961367-fov80-heading205-pitch-10.jpg';
+
 
     leafMaps.setMaxBounds(imageBounds);
     L.imageOverlay(imageUrl, imageBounds).addTo(leafMaps);
@@ -237,9 +237,9 @@ function leafDraw(leafMaps, conn, blueIcon) {
 
     leafMaps.on('pm:drawstart', function (e) {
         if (e.shape === "Marker") {
-            appendLog("<div>" + '\xa0\xa0' + "> Place marker to get a location coordinate.</div>");
+            appendLog("<div><b>" + '\xa0\xa0' + "> Place marker to get a location coordinate.</b></div>");
         } else if (e.shape === "Poly") {
-            appendLog("<div>" + '\xa0\xa0' + "> Draw polygon to get coordinates encapsulating a feature.</div>");
+            appendLog("<div><b>" + '\xa0\xa0' + "> click the 4 corners of a parking space to encapsulating it.</b></div>");
         }
     });
 
@@ -295,7 +295,7 @@ function leafDraw(leafMaps, conn, blueIcon) {
                 }
                 geojson.addData(msgServer.features);
             } else if (msgServer.features.properties.annotationStatus == "no selection") {
-                appendLog("<div>" + '\xa0\xa0' + "> Please place marker on ground surfaces.</div>");
+                appendLog("<div><b>" + '\xa0\xa0' + "> Please place marker on ground surfaces.</b></div>");
             }
             // this.removeEventListener('message', arguments.callee, false);
         }
@@ -339,7 +339,7 @@ function onEachFeature(feature, layer) {
 
     var annotationType = feature.properties.annotationType;
     layer.bindPopup('<div style="width:150px; text-align: left;">' + "This feature is a " +
-        annotationType + '. Coordinates are in textbox. Click on the Google Maps Icon for More Options.</div>');
+        annotationType + '. Coordinates are in textbox. Click on the annotation on Google Maps to see more.</div>');
 
     var featureUUID = feature.properties.annotationID;
     layer.on('remove', function () {
@@ -386,13 +386,14 @@ function onEachFeature(feature, layer) {
             if (feature.geometry.type == "Point") {
                 appendLog("<div>" + '\xa0\xa0' +
                     "> Latitude: " + feature.properties.pixelCoordinates.Vertex1Array[1] +
-                    "<--> Longtitude: " + feature.properties.pixelCoordinates.Vertex1Array[0] + "</div>");
+                    "; Longtitude: " + feature.properties.pixelCoordinates.Vertex1Array[0] + "</div>");
             } else if (feature.geometry.type == "Polygon") {
 
                 for (i = 0; i < (feature.properties.pixelCoordinates.Vertex3Array[0]).length - 1; i++) {
-                    appendLog("<div>" + '\xa0\xa0' +
-                        "> Latitude: " + feature.properties.pixelCoordinates.Vertex3Array[0][i][1] +
-                        "<--> Longtitude: " + feature.properties.pixelCoordinates.Vertex3Array[0][i][0] + "</div>");
+                    var y=i+1;
+                    appendLog("<div>" + '\xa0\xa0' + 
+                        "> Polygon corner " +y+ "<--> Latitude: " + feature.properties.pixelCoordinates.Vertex3Array[0][i][1] +
+                        "; Longtitude: " + feature.properties.pixelCoordinates.Vertex3Array[0][i][0] + "</div>");
                 }
 
             }

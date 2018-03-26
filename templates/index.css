@@ -68,7 +68,7 @@ cursor: pointer;
 display: inline;
 }
 
-#navButton{
+/* #navButton{
 background-color: #38465b;
 border: none;
 color: white;
@@ -80,7 +80,7 @@ font-size: 16px;
 margin: 2px 1px;
 cursor: pointer;
 display: inline;
-}
+} */
 
 nav {
   z-index: 1;
