@@ -19,11 +19,11 @@ var templates *template.Template
 
 // AnnotationID returns UUID for annotations; maybe upgrade to v5 based on users
 func AnnotationID() (uuid.UUID, error) {
-	randomID, err := uuid.NewV4()
-	if err != nil {
-		fmt.Printf("Something went wrong: %s", err)
-		return randomID, err
-	}
+	randomID := uuid.NewV4()
+	// if err != nil {
+	// 	fmt.Printf("Something went wrong: %s", err)
+	// 	return randomID, err
+	// }
 	return randomID, nil
 }
 
