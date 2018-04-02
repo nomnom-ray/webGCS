@@ -78,10 +78,28 @@ func processing(message MsgFromClient,
 	case "annotationStore":
 		msg2Clients, err = annotationStore(message, projectedTile, userIDInSession)
 		return msg2Clients, err
+	case "navigationFrame":
+		msg2Clients, err = navigationFrame(message, userIDInSession)
+		return msg2Clients, err
 	default:
 		//TODO:take case of the panic cases to something that won't crash the program
 		panic("Unknown message type from client")
 	}
+}
+
+func navigationFrame(message MsgFromClient, userIDInSession int64) (models.Msg2Client, error) {
+
+	features2Client, err := models.GetNavPrimitives(message.MsgContent)
+	if err != nil {
+
+	}
+
+	var msg2Client models.Msg2Client
+
+	msg2Client.Feature = features2Client
+
+	return msg2Client, nil
+
 }
 
 func annotationRemove(message MsgFromClient,

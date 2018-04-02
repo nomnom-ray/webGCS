@@ -15,6 +15,12 @@ func main() {
 
 	models.InitRedis()
 	tile := models.InitTiles()
+
+	//for transmitting tile sections to client; this should be done by POSTGIS, not redis
+	// if ok := models.TileCheck(); !ok {
+	// 	tile.NewRedisTile()
+	// }
+
 	projectedTile := tile.InitProjectedTiles()
 
 	util.LoadTemplates("templates/*.html")
@@ -24,8 +30,10 @@ func main() {
 
 	http.Handle("/", r) //use the mux router as the default handler
 
-	log.Printf("serving on port :8080")
-	log.Fatal(http.ListenAndServe(":8080", r))
+	// log.Printf("serving on port :8080")
+	// log.Fatal(http.ListenAndServe(":8080", r))
+	log.Printf("serving on port :80")
+	log.Fatal(http.ListenAndServe(":80", r))
 
 	//web client to get vectors; costs money and slow;
 	//client will not run as long as resultRawModel.csv in folder

@@ -155,17 +155,16 @@ func (l *Annotation) GetAnnotationContext() (Msg2Client, error) {
 		return annotation, err
 	}
 	cmd := redis.NewStringCmd("GET", tile38Key, l.FeatureID, "OBJECT")
+	tileClient.Process(redis.NewStringCmd("OUTPUT", "resp"))
 	tileClient.Process(cmd)
 	rawjson, err := cmd.Result()
 	if err != nil {
 		return annotation, err
 	}
-
 	err = json.Unmarshal([]byte(rawjson), &annotation.Feature)
 	if err != nil {
 		return annotation, err
 	}
-	// pretty.Println(annotation.Feature)
 
 	return annotation, nil
 }
