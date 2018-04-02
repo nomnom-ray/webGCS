@@ -16,7 +16,7 @@ func main() {
 	models.InitRedis()
 	tile := models.InitTiles()
 
-	//for transmitting tile sections to client; this should be done by POSTGIS, not redis
+	//for transmitting tile sections to client; this should be done by POSTGIS, not redis.
 	// if ok := models.TileCheck(); !ok {
 	// 	tile.NewRedisTile()
 	// }
