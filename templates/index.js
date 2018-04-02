@@ -33,7 +33,7 @@ function initMap() {
         fillOpacity: 0.3,
         strokeWeight: 1,
         strokeColor: '#3794ff',
-        icon: '/templates/js-lib/leaflet-color-markers/img/marker-icon-blue.png'
+        icon: '/templates/js-lib/leaflet-markers/marker-icon-blue.png'
     });
 
     directionsService = new google.maps.DirectionsService();
@@ -283,8 +283,8 @@ function leafInit(conn) {
     leafMaps.dragging.disable();
 
     var blueIcon = new L.Icon({
-        iconUrl: '/templates/js-lib/leaflet-color-markers/img/marker-icon-2x-blue.png',
-        shadowUrl: '/templates/js-lib/leaflet-color-markers/img/marker-shadow.png',
+        iconUrl: '/templates/js-lib/leaflet-markers/marker-icon-2x-blue.png',
+        shadowUrl: '/templates/js-lib/leaflet-markers/marker-shadow.png',
         iconSize: [25, 41],
         iconAnchor: [12, 41],
         popupAnchor: [1, -34],
