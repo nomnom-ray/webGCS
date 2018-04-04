@@ -133,12 +133,25 @@ function initMap() {
         conn = new WebSocket("ws://" + window.location.hostname + "/ws");
         conn.addEventListener('message', function (e) {
             var msgServer = JSON.parse(e.data);
-            if (!msgServer.features) {
+            if (!msgServer) {
                 // It doesn't exist, do nothing
             } else {
-                if (msgServer.features.properties.annotationStatus == "no error") {
-                    gMaps.data.addGeoJson(msgServer.features);
-                }
+                switch (msgServer.msgTypeFromServer) {
+                    case 'msgDisplay':
+                        if (msgServer.features.properties.annotationStatus == "no error") {
+                            gMaps.data.addGeoJson(msgServer.features);
+                        }
+                        break;
+                    case 'msgRemove':
+                        gMaps.data.forEach(function (feature) {
+                            if (feature.getProperty('annotationID') == msgServer.features.properties.annotationID) {
+                                gMaps.data.remove(feature);
+                            }
+                        });
+                        break;
+                    default:
+                    //   console.log("ERR: message type not found");
+                  }
             }
         });
 
@@ -382,45 +395,71 @@ function leafDraw(leafMaps, conn, blueIcon) {
         }
         var messageContent = createGEOJSON(geometryType, pixCoordinates, annotationType);
         var messageType = "annotationStore";
-
         message4Server = JSON.stringify({messagetype:messageType,messagecontent:messageContent});
-        conn.addEventListener('message', function (evt) {
-            var msgServer = JSON.parse(evt.data);
-            if (!msgServer.features) {
-                // It doesn't exist, do nothing
-            } else {
-                leafMaps.removeLayer(e.layer);
-                this.removeEventListener('message', arguments.callee, false);
-            }
-        });
 
         var sent = toServer(message4Server, conn);
         if (!sent) {
             appendLog("<div><b>" + '\xa0\xa0' + "Message not sent.</b></div>");
         }
+
+        conn.addEventListener('message', function (evt) {
+            var msgServer = JSON.parse(evt.data);
+            //add in if msgdisplay only
+            if (!msgServer) {
+                // It doesn't exist, do nothing
+            } else {
+                if(msgServer.msgTypeFromServer=="msgDisplay"){
+                    leafMaps.removeLayer(e.layer);
+                    this.removeEventListener('message', arguments.callee, false);
+                }
+            }
+        });
+
+
     });
 
     conn.addEventListener('message', function (event) {
         var msgServer = JSON.parse(event.data);
-        if (!msgServer.features) {
-            // It doesn't exist, do nothing
+        if (!msgServer) {
+            console.log("ERR: message from ws nil");
         } else {
-            if (msgServer.features.properties.annotationStatus == "no error") {
-                var swapCoordinates = msgServer.features.geometry.coordinates;
-
-                if (msgServer.features.geometry.type == "Point") {
-                    msgServer.features.geometry.coordinates = msgServer.features.properties.pixelCoordinates.Vertex1Array;
-                    msgServer.features.properties.pixelCoordinates.Vertex1Array = swapCoordinates;
-                } else if (msgServer.features.geometry.type == "Polygon") {
-                    msgServer.features.geometry.coordinates = msgServer.features.properties.pixelCoordinates.Vertex3Array;
-                    msgServer.features.properties.pixelCoordinates.Vertex3Array = swapCoordinates;
-                }
-                geojson.addData(msgServer.features);
-            } else if (msgServer.features.properties.annotationStatus == "no selection") {
-                appendLog("<div><b>" + '\xa0\xa0' + "> Please place marker on ground surfaces.</b></div>");
-            }
-            // this.removeEventListener('message', arguments.callee, false);
+            switch (msgServer.msgTypeFromServer) {
+                case 'msgDisplay':
+                    if (msgServer.features.properties.annotationStatus == "no error") {
+                        var swapCoordinates = msgServer.features.geometry.coordinates;
+        
+                        if (msgServer.features.geometry.type == "Point") {
+                            msgServer.features.geometry.coordinates = msgServer.features.properties.pixelCoordinates.Vertex1Array;
+                            msgServer.features.properties.pixelCoordinates.Vertex1Array = swapCoordinates;
+                        } else if (msgServer.features.geometry.type == "Polygon") {
+                            msgServer.features.geometry.coordinates = msgServer.features.properties.pixelCoordinates.Vertex3Array;
+                            msgServer.features.properties.pixelCoordinates.Vertex3Array = swapCoordinates;
+                        }
+                        geojson.addData(msgServer.features);
+                    } else if (msgServer.features.properties.annotationStatus == "no selection") {
+                        appendLog("<div><b>" + '\xa0\xa0' + "> Please place marker on ground surfaces.</b></div>");
+                    }
+                    break;
+                case 'msgRemove':
+                    geojson.eachLayer(function (layer) {
+                        // layer.feature is the original geojson feature
+                        if (layer.feature.properties.annotationID === msgServer.features.properties.annotationID) {
+                            geojson.removeLayer(layer);
+                        }
+                    });
+                    break;
+                default:
+                //   console.log("ERR: message type not found");
+              }
         }
+
+
+
+
+
+
+
+
     });
 
     geojson.on("click", onFeatureGroupClick);
@@ -468,7 +507,8 @@ function onEachFeature(feature, layer) {
         gMaps.data.forEach(function (feature) {
             if (feature.getProperty('annotationID') == featureUUID) {
 
-                if (annotationType != "Point"){
+                //TODO: evaluate how to do marker sync on ws
+                // if (annotationType != "Point"){
                     var messageType = "annotationRemove";
                     var messageContent = {properties:{annotationID:featureUUID,annotationType:annotationType}};
                     var message4Server = JSON.stringify({messagetype:messageType,messagecontent:messageContent});
@@ -476,7 +516,7 @@ function onEachFeature(feature, layer) {
                     if (!sent) {
                         appendLog("<div><b>" + '\xa0\xa0' + "Message not sent.</b></div>");
                     }
-                }
+                // }
                 gMaps.data.remove(feature);
             }
         });

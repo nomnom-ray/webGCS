@@ -47,6 +47,7 @@ type GjsonGeometry struct {
 }
 
 type Msg2Client struct {
+	MsgType string           `json:"msgTypeFromServer"`
 	Feature *geojson.Feature `json:"features"`
 }
 
@@ -102,10 +103,11 @@ func Remove1Annotation(property GjsonProperties, userIDInSession int64) error {
 		return util.ErrDeleting
 	}
 
-	userListDelCheck := client.LRem(fmt.Sprintf("user:%d:annotation_list", userIDInSession), 1, idFromUUID).Val()
-	if userListDelCheck < 1 {
-		return util.ErrDeleting
-	}
+	//TODO: figure out user annotation categorization; having this gives error rigth now
+	// userListDelCheck := client.LRem(fmt.Sprintf("user:%d:annotation_list", userIDInSession), 1, idFromUUID).Val()
+	// if userListDelCheck < 1 {
+	// 	return util.ErrDeleting
+	// }
 
 	cmd := redis.NewStringCmd("DEL", tile38Key, idFromUUID)
 	tileClient.Process(cmd)

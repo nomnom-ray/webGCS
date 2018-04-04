@@ -6,6 +6,8 @@ import (
 	"log"
 	"sync"
 
+	"github.com/kr/pretty"
+
 	"github.com/gorilla/websocket"
 	"github.com/nomnom-ray/webGCS/models"
 	"github.com/nomnom-ray/webGCS/util"
@@ -51,6 +53,7 @@ func (c *Connection) reader(wg *sync.WaitGroup, wsConn *websocket.Conn,
 				return
 			}
 		}
+
 		c.h.broadcast <- msg2Clients
 	}
 }
@@ -70,10 +73,25 @@ func processing(message MsgFromClient,
 
 	switch message.MsgType {
 	case "annotationRemove":
+
+		pretty.Println(message.MsgContent)
+
 		if message.MsgContent.Geometry.GeometryType == "Point" {
+
+			var feature2Clnts *geojson.Feature
+
+			points := orb.Point{0, 0}
+			feature2Clnts = geojson.NewFeature(points)
+			feature2Clnts.Properties["annotationID"] = message.MsgContent.Property.AnnotationID
+
+			msg2Clients.MsgType = "msgRemove"
+			msg2Clients.Feature = feature2Clnts
+
+			pretty.Println(msg2Clients)
+
 			return msg2Clients, util.ErrDeletePoint
 		}
-		_, err = annotationRemove(message, projectedTile, userIDInSession)
+		msg2Clients, err = annotationRemove(message, projectedTile, userIDInSession)
 		return msg2Clients, err
 	case "annotationStore":
 		msg2Clients, err = annotationStore(message, projectedTile, userIDInSession)
@@ -103,15 +121,25 @@ func navigationFrame(message MsgFromClient, userIDInSession int64) (models.Msg2C
 }
 
 func annotationRemove(message MsgFromClient,
-	projectedTile *models.ProjectedTiles, userIDInSession int64) (msg2Clients models.Msg2Client, err error) {
+	projectedTile *models.ProjectedTiles, userIDInSession int64) (models.Msg2Client, error) {
 
-	err = models.Remove1Annotation(message.MsgContent.Property, userIDInSession)
+	var msg2Clients models.Msg2Client
+	var feature2Clnts *geojson.Feature
+
+	points := orb.Point{0, 0}
+	feature2Clnts = geojson.NewFeature(points)
+	feature2Clnts.Properties["annotationID"] = message.MsgContent.Property.AnnotationID
+
+	msg2Clients.MsgType = "msgRemove"
+	msg2Clients.Feature = feature2Clnts
+
+	err := models.Remove1Annotation(message.MsgContent.Property, userIDInSession)
 	if err == util.ErrAnnotationNotFound {
 		log.Println(err)
 	} else if err != nil {
-		return
+		return msg2Clients, err
 	}
-	return
+	return msg2Clients, nil
 }
 
 func annotationStore(message MsgFromClient,
@@ -197,6 +225,7 @@ func annotationStore(message MsgFromClient,
 	}
 
 	msg2Client.Feature = feature2Clnts
+	msg2Client.MsgType = "msgDisplay"
 
 	err = PostNewFeatures(msg2Client, userIDInSession)
 	if err == util.ErrBadPrimitivePick {
@@ -224,19 +253,18 @@ func camera(pixCoor []float64, projectedTile *models.ProjectedTiles) ([]float64,
 }
 
 func (c *Connection) syncToDatabase(wsConn *websocket.Conn) error {
-
 	var msg2Client models.Msg2Client
 	annotationsArray, err := models.GetGlobalAnnotations()
 	if err != nil {
 		util.InternalServerError(err, wsConn)
 		return err
 	}
-
 	for _, annotation := range annotationsArray {
 		msg2Client, err = annotation.GetAnnotationContext()
 		if err != nil {
 			return err
 		}
+		msg2Client.MsgType = "msgDisplay"
 
 		c.h.connectionsMx.RLock()
 		err = wsConn.WriteJSON(msg2Client)
