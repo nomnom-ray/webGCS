@@ -43,7 +43,7 @@ var (
 	windHeight       = 600 //720.0
 	imageAspectRatio = float64(windWidth / windHeight)
 	scale            = 4                                  // optional supersampling
-	fovy             = 80.0                               // vertical field of view in degrees
+	fovy             = 92.0                               //80.0                               // vertical field of view in degrees
 	near             = 0.001                              // near clipping plane
 	far              = 10.0                               // far clipping plane
 	eye              = fauxgl.V(0, 0, 0)                  // camera position
@@ -150,13 +150,15 @@ func (m *MapTiles) InitProjectedTiles() *ProjectedTiles {
 // CameraModel combines camera and projection parameters to create a single matrix
 func (m *MapTiles) CameraModel(cameraLocation MapVector) fauxgl.Matrix {
 
-	cameraRotationLR := float64(-205) - 90 + 0.2          //-ve rotates camera clockwise in degrees
-	cameraRotationUD := float64(-10.0)                    //-ve rotates camera downwards in degrees
+	cameraRotationLR := float64(-205) - 90 - 12.0 //-ve rotates camera clockwise in degrees
+	cameraRotationUD := float64(-10.0)            //-ve rotates camera downwards in degrees
+	cameraTilt := -1.16
 	cameraX := float64(cameraLocation.VertX)              //-ve pans camera to the right
 	cameraZ := float64(cameraLocation.VertZ)              //-ve pans camera to the back
 	cameraHeight := float64(-0.00002252)                  //height of the camera from ground
 	groundRef := float64(-cameraLocation.VertY) + 0.00004 //ground reference to the lowest ground point in the tile
 
+	//normalize camera location to 1:1:1 camera space
 	cameraPosition := fauxgl.Vector{
 		X: cameraX / m.MaxVert,
 		Y: (cameraHeight + groundRef) / m.MaxVert,
@@ -169,7 +171,7 @@ func (m *MapTiles) CameraModel(cameraLocation MapVector) fauxgl.Matrix {
 	}
 	cameraUp := fauxgl.Vector{
 		X: 0,
-		Y: -1,
+		Y: cameraTilt, //-1,
 		Z: 0,
 	}
 	cameraViewDirection = fauxgl.QuatRotate(

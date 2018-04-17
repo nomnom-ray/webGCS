@@ -6,8 +6,6 @@ import (
 	"log"
 	"sync"
 
-	"github.com/kr/pretty"
-
 	"github.com/gorilla/websocket"
 	"github.com/nomnom-ray/webGCS/models"
 	"github.com/nomnom-ray/webGCS/util"
@@ -73,9 +71,6 @@ func processing(message MsgFromClient,
 
 	switch message.MsgType {
 	case "annotationRemove":
-
-		pretty.Println(message.MsgContent)
-
 		if message.MsgContent.Geometry.GeometryType == "Point" {
 
 			var feature2Clnts *geojson.Feature
@@ -86,9 +81,6 @@ func processing(message MsgFromClient,
 
 			msg2Clients.MsgType = "msgRemove"
 			msg2Clients.Feature = feature2Clnts
-
-			pretty.Println(msg2Clients)
-
 			return msg2Clients, util.ErrDeletePoint
 		}
 		msg2Clients, err = annotationRemove(message, projectedTile, userIDInSession)

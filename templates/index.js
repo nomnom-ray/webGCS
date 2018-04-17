@@ -9,8 +9,8 @@ var infowindow;
 function initMap() {
     gMaps = new google.maps.Map(document.getElementById('googleMaps'), {
         center: {
-            lat: 43.451774,
-            lng: -80.496678
+            lat: 43.451700,
+            lng: -80.49600
         },
         zoom: 20,
         streetViewControl: false,
@@ -93,8 +93,8 @@ function initMap() {
                 annotationPosition=[e.latLng.lat(),e.latLng.lng()];
             }
             infowindow.setContent(
-                '<div style="width:150px; text-align: left;">' + "This feature is a " +
-                annotationType + '. Evaluate its accuracy by turning on satellite view on the upper-right corner. "Navigate" creates route to a demo location "Dallas". </div><br/>' +
+                '<div style="width:150px; text-align: left;">' + "<b>Annotation type: " + 
+                annotationType + '.</b>' + '<br> ("Navigate" adds route to a demo location "Dallas".) </div><br/>' +
                 '<button id="deleteButton" onclick="deleteAnnotation(gSelectedAnnotation,conn);">Delete</button>' +
                 '<button id="navButton" onclick="getNavRoutes(annotationPosition,conn,infowindow)">Navigate</button>'
             );
@@ -227,12 +227,10 @@ function getNavRoutes(annotationPosition,conn,infowindow) {
             });
             infowindow.close(gMaps);
 
-            var infoWindow = new google.maps.InfoWindow();
+            // var infoWindow = new google.maps.InfoWindow();
             google.maps.event.addListener(routePolygon, 'click', function (event) {
-                var contentString = 'Minimal sever/client<br>' + 
-                'data exchange for<br>' + 
-                'autonomous navigation.<br>'+
-                '<b>Route Coordinates:</b><br>Lat: ' + 
+                var infoWindow = new google.maps.InfoWindow();
+                var contentString = '<b>Point Coordinate on Route:</b><br>Lat: ' + 
                 precisionRound(event.latLng.lat(),6) +
                 '<br>Lng: ' + precisionRound(event.latLng.lng(),6) + '<br/>' +
                 '<button id="deleteButton" onclick="deleteRoute(routePolygon);">Delete</button>';
@@ -452,14 +450,6 @@ function leafDraw(leafMaps, conn, blueIcon) {
                 //   console.log("ERR: message type not found");
               }
         }
-
-
-
-
-
-
-
-
     });
 
     geojson.on("click", onFeatureGroupClick);
@@ -499,8 +489,8 @@ function onFeatureGroupClick(e) {
 function onEachFeature(feature, layer) {
 
     var annotationType = feature.properties.annotationType;
-    layer.bindPopup('<div style="width:150px; text-align: left;">' + "This feature is a " +
-        annotationType + '. Coordinates are in textbox. Click on the annotation on Google Maps to see more.</div>');
+    layer.bindPopup('<div style="width:150px; text-align: left;">' + "<b>Annotation type: " +
+        annotationType + '.</b>');
 
     var featureUUID = feature.properties.annotationID;
     layer.on('remove', function () {
@@ -549,6 +539,9 @@ function onEachFeature(feature, layer) {
                     "> Latitude: " + feature.properties.pixelCoordinates.Vertex1Array[1] +
                     "; Longtitude: " + feature.properties.pixelCoordinates.Vertex1Array[0] + "</div>");
             } else if (feature.geometry.type == "Polygon") {
+
+                appendLog("<div>" + '\xa0\xa0' + 
+                "Annotation UUID: " + feature.properties.annotationID + ".</div>");
 
                 for (i = 0; i < (feature.properties.pixelCoordinates.Vertex3Array[0]).length - 1; i++) {
                     var y=i+1;
