@@ -4,100 +4,95 @@
 <head>
 	<title>register</title>
 	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<link rel="stylesheet" type="text/css" href="templates/register-util.css">
 	<link rel="stylesheet" type="text/css" href="templates/register-main.css">
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-	<style>
-		#fade {
-			display: none;
-			position: fixed;
-			top: 0%;
-			left: 0%;
-			width: 100%;
-			height: 100%;
-			background-color: black;
-			z-index: 1001;
-			-moz-opacity: 0.8;
-			opacity: .80;
-			filter: alpha(opacity=80);
-		}
-
-		#light {
-			display: none;
-			position: absolute;
-			top: 50%;
-			left: 50%;
-			max-width: 1280px;
-			max-height: auto;
-			margin-left: -640px;
-			margin-top: -360px;
-			z-index: 1002;
-			overflow: visible;
-		}
-	</style>
+	<link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
 </head>
 
 <body>
-	<div id="light">
-			<video id="VisaChipCardVideo" width="1280" height="auto" controls="controls" preload="none"
-			poster=/templates/720poster.png 
-			onclick="this.paused ? this.play() : this.pause();">
-				<source src="https://www.w3schools.com/html/mov_bbb.mp4" type="video/mp4">
+
+	<div class="w3-container">
+		<div class="mobileCover w3-xlarge">
+			Sorry, we are still working on mobile support.
+			<img class="coverCat" src="/templates/mobileCoverCat.png" alt="coverCat">
+		</div>
+	</div>
+
+	<div class="w3-row">
+		<div class="light w3-twothird">
+			<video id="explainerVideo" width="100%" height="auto" controls="controls" preload="none" poster=/templates/720poster.png
+			    onclick="this.paused ? this.play() : this.pause();">
+				<source src="templates/Cliewen_Production.mp4" type="video/mp4">
 				<!--Browser does not support <video> tag -->
 			</video>
+		</div>
 	</div>
-	<div id="fade" onClick="lightbox_close();"></div>
 
-		<div class="limiter">
-			<div class="container-login100">
-				<div class="wrap-login100 p-t-50 p-b-90">
-					<button class="Video-btn m-b-34" onclick="lightbox_open();">
-						Watch What Cliewen Does &nbsp
-						<i class="fa fa-play-circle-o" style="font-size:42px;color:red"></i>
-					</button>
+	<div class="fade" onClick="lightbox_close();"></div>
 
-					<form method="POST" class="login100-form validate-form flex-sb flex-w" autocomplete="off">
-						<div class="wrap-input100 validate-input m-b-16">
-							<input class="input100" type="text" name="username" placeholder="Put a name here">
-							<span class="focus-input100"></span>
-						</div>
-						<div class="container-login100-form-btn m-t-17">
-							<button class="login100-form-btn">
-								Go to Cliewen
-							</button>
-						</div>
-					</form>
-				</div>
+	<div class="limiter">
+		<div class="container-login100">
+			<div class="wrap-login100 p-t-50 p-b-90">
+				<button class="Video-btn m-b-34" onclick="lightbox_open();">
+					Watch What Cliewen Does &nbsp
+					<i class="fa fa-play-circle-o" style="font-size:42px;color:red"></i>
+				</button>
+
+				<form method="POST" class="login100-form validate-form flex-sb flex-w" autocomplete="off" onsubmit="return mobileWarning()">
+					<div class="wrap-input100 validate-input m-b-16">
+						<input class="input100" type="text" name="username" placeholder="Put a name here">
+						<span class="focus-input100"></span>
+					</div>
+					<div class="container-login100-form-btn m-t-17">
+						<button class="login100-form-btn">
+							Go to Cliewen
+						</button>
+					</div>
+				</form>
 			</div>
 		</div>
-		{{if . }}
-		<div class="error">{{.}}</div>
-		{{end}}
+	</div>
+	{{if . }}
+	<div class="error">{{.}}</div>
+	{{end}}
 
-		<script>
-			window.document.onkeydown = function (e) {
-				if (!e) {
-					e = event;
-				}
-				if (e.keyCode == 27) {
-					lightbox_close();
-				}
+	<script>
+		window.document.onkeydown = function (e) {
+			if (!e) {
+				e = event;
 			}
+			if (e.keyCode == 27) {
+				lightbox_close();
+			}
+		}
 
-			function lightbox_open() {
+		function lightbox_open() {
+			window.scrollTo(0, 0);
+			document.getElementsByClassName('light')[0].style.display = 'block';
+			document.getElementsByClassName('fade')[0].style.display = 'block';
+		}
+
+		function lightbox_close() {
+			var lightBoxVideo = document.getElementById("explainerVideo");
+			document.getElementsByClassName('light')[0].style.display = 'none';
+			document.getElementsByClassName('fade')[0].style.display = 'none';
+			document.getElementsByClassName('mobileCover')[0].style.display = 'none';
+			lightBoxVideo.pause();
+		}
+
+		function mobileWarning() {
+			if (window.innerWidth < 600) {
 				window.scrollTo(0, 0);
-				document.getElementById('light').style.display = 'block';
-				document.getElementById('fade').style.display = 'block';
+				document.getElementsByClassName('mobileCover')[0].style.display = 'block';
+				document.getElementsByClassName('fade')[0].style.display = 'block';
+				return false;
 			}
-
-			function lightbox_close() {
-				var lightBoxVideo = document.getElementById("VisaChipCardVideo");
-				document.getElementById('light').style.display = 'none';
-				document.getElementById('fade').style.display = 'none';
-				lightBoxVideo.pause();
-			}
-		</script>
+			return true;
+		}
+	</script>
 </body>
 
 </html>

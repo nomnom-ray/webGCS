@@ -20,7 +20,6 @@ type Hub struct {
 	connections map[*Connection]struct{}
 	// Inbound messages from the connections.
 	broadcast chan models.Msg2Client
-	process   chan MsgFromClient
 
 	projectedTile *models.ProjectedTiles
 }
@@ -31,7 +30,6 @@ func NewHub(projectedTile *models.ProjectedTiles) *Hub {
 		connectionsMx: sync.RWMutex{},
 		connections:   make(map[*Connection]struct{}),
 		broadcast:     make(chan models.Msg2Client),
-		process:       make(chan MsgFromClient),
 		projectedTile: projectedTile,
 	}
 
