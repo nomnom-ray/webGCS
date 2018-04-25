@@ -2,11 +2,13 @@ var gMaps;
 var conn;
 
 var directionsDisplay;
-var directionsService; 
+var directionsService;
 
 var infowindow;
 
 function initMap() {
+
+    //COMMENT: define a new google maps window, and set properties displayed on the map
     gMaps = new google.maps.Map(document.getElementById('googleMaps'), {
         center: {
             lat: 43.451700,
@@ -26,8 +28,10 @@ function initMap() {
         }
     });
 
+    //COMMENT: new instance of information popup window for annotations
     infowindow = new google.maps.InfoWindow();
 
+    //COMMENT: the default style of annotations on goolgle maps
     gMaps.data.setStyle({
         fillColor: '#3794ff',
         fillOpacity: 0.3,
@@ -36,6 +40,7 @@ function initMap() {
         icon: '/templates/js-lib/leaflet-markers/marker-icon-blue.png'
     });
 
+    //COMMENT: new instance of path planning for the navigation demo
     directionsService = new google.maps.DirectionsService();
     var lineSymbol = {
         path: 'M 0,-1 0,1',
@@ -45,21 +50,30 @@ function initMap() {
     var dashedPolyline = {
         strokeOpacity: 0,
         icons: [{
-          icon: lineSymbol,
-          offset: '0',
-          repeat: '20px'
+            icon: lineSymbol,
+            offset: '0',
+            repeat: '20px'
         }]
     };
-    directionsDisplay = new google.maps.DirectionsRenderer({polylineOptions:dashedPolyline});
+    directionsDisplay = new google.maps.DirectionsRenderer({
+        polylineOptions: dashedPolyline
+    });
+
+    //COMMENT: assign path planning to a map instance of google maps
     directionsDisplay.setMap(gMaps);
 
+    //COMMENT: selectionToggle keeps count of whether an annotation was perviously selected
+    //this variable tracks whether popup window and highlight should be enabled or disabled
     var selectionToggle = false;
+
+
     gMaps.data.addListener('click', function (e) {
 
         gMaps.data.revertStyle();
 
         selectionToggle = !selectionToggle;
         if (selectionToggle == true) {
+            //COMMENT: overrideStyle changes color (highlight) of an polygon-type annoation on click in google maps
             gMaps.data.overrideStyle(e.feature, {
                 fillColor: '#3fdbff',
                 fillOpacity: 0.3,
@@ -67,38 +81,41 @@ function initMap() {
                 strokeColor: '#3fdbff'
             });
             gSelectedAnnotation = e.feature;
+            //COMMENT: extract data from annoation's GEOJSON based on its type (annotationType), 
+            //and display in an infowindow 
             var annotationType = e.feature.getProperty("annotationType");
             if (annotationType == "Point") {
                 e.feature.getGeometry().forEachLatLng(function (path) {
-                //     appendLog("<div>" + '\xa0\xa0' +
-                //         "> Latitude: " + path.lat() + ";Longtitude: " + path.lng() + "</div>");
+                    //     appendLog("<div>" + '\xa0\xa0' +
+                    //         "> Latitude: " + path.lat() + ";Longtitude: " + path.lng() + "</div>");
                 });
                 infowindow.setPosition(e.feature.getGeometry().get());
                 infowindow.setOptions({
                     pixelOffset: new google.maps.Size(0, -30)
                 });
+                //COMMENT: the GEOJSONs are categorized in 2 type; but this should be dynamic
+                //instead of if conditioning on annotationType; it should condition on geometry type (included in GEOJSON)
             } else if (annotationType == "LotParking") {
                 e.feature.getGeometry().forEachLatLng(function (path) {
-                //     appendLog("<div>" + '\xa0\xa0' +
-                //         ">Polygon corner " +y+ "<--> Latitude: " + path.lat() + "; Longtitude: " + path.lng() + "</div>");
+                    //     appendLog("<div>" + '\xa0\xa0' +
+                    //         ">Polygon corner " +y+ "<--> Latitude: " + path.lat() + "; Longtitude: " + path.lng() + "</div>");
                 });
                 infowindow.setPosition(e.latLng);
                 infowindow.setOptions({
                     pixelOffset: new google.maps.Size(0, -5)
                 });
             }
-            if (annotationType =="Point"){
-                annotationPosition=[e.feature.getGeometry().get().lat(),e.feature.getGeometry().get().lng()];
-            }else{
-                annotationPosition=[e.latLng.lat(),e.latLng.lng()];
+            if (annotationType == "Point") {
+                annotationPosition = [e.feature.getGeometry().get().lat(), e.feature.getGeometry().get().lng()];
+            } else {
+                annotationPosition = [e.latLng.lat(), e.latLng.lng()];
             }
             infowindow.setContent(
-                '<div style="width:150px; text-align: left;">' + "<b>Annotation type: " + 
+                '<div style="width:150px; text-align: left;">' + "<b>Annotation type: " +
                 annotationType + '.</b>' + '<br> ("Navigate" adds route to a demo location "Dallas".) </div><br/>' +
                 '<button id="deleteButton" onclick="deleteAnnotation(gSelectedAnnotation,conn);">Delete</button>' +
                 '<button id="navButton" onclick="getNavRoutes(annotationPosition,conn,infowindow)">Navigate</button>'
             );
-
             infowindow.open(gMaps);
         } else {
             gMaps.data.overrideStyle(e.feature, {
@@ -115,6 +132,8 @@ function initMap() {
         selectionToggle = false;
     });
 
+    //COMMENT: websocket is opened in the google maps init function because Gmaps is asynchronous; 
+    //this ensures that websocket happens after google maps loads
     if (window.WebSocket) {
         window.onbeforeunload = function () {
             conn.close();
@@ -131,10 +150,12 @@ function initMap() {
 
         // conn = new WebSocket("ws://localhost:8080/ws");
         conn = new WebSocket("ws://" + window.location.hostname + "/ws");
+
+        //COMMENT: conn event listener executes requests from the server for the Google Maps window 
         conn.addEventListener('message', function (e) {
             var msgServer = JSON.parse(e.data);
             if (!msgServer) {
-                // It doesn't exist, do nothing
+                //COMMENT:  It doesn't exist, do nothing here
             } else {
                 switch (msgServer.msgTypeFromServer) {
                     case 'msgDisplay':
@@ -150,11 +171,12 @@ function initMap() {
                         });
                         break;
                     default:
-                    //   console.log("ERR: message type not found");
-                  }
+                        //   console.log("ERR: message type not found");
+                }
             }
         });
 
+        //COMMENT: leafInit() initializes the Leaflet window; websocket connection is passed to it
         leafInit(conn);
 
         conn.onclose = function (evt) {
@@ -165,10 +187,11 @@ function initMap() {
     }
 }
 
-function deleteAnnotation(gSelectedAnnotation,conn) {
+//COMMENT: deleteAnnotation initiates delete from google maps
+//searches through all annotations from Leaflet based on an UUID called annotationID, and deletes it there too 
+function deleteAnnotation(gSelectedAnnotation, conn) {
     var featureUUID = gSelectedAnnotation.getProperty("annotationID");
     geojson.eachLayer(function (layer) {
-        // layer.feature is the original geojson feature
         if (layer.feature.properties.annotationID === featureUUID) {
             geojson.removeLayer(layer);
         }
@@ -177,10 +200,14 @@ function deleteAnnotation(gSelectedAnnotation,conn) {
     gSelectedAnnotation = 0;
 }
 
-var routePolygon = null;   
-function getNavRoutes(annotationPosition,conn,infowindow) {    
+//COMMENT: GetNavRoutes() creates a demo path planning function in google maps
+//the end location is just a place holder for the sake of the demo
+//the actual path is replaced with a polygon for that covers a wider area of the navigation path 
+var routePolygon = null;
 
-    var start = new google.maps.LatLng(annotationPosition[0],annotationPosition[1]);
+function getNavRoutes(annotationPosition, conn, infowindow) {
+
+    var start = new google.maps.LatLng(annotationPosition[0], annotationPosition[1]);
     var end = new google.maps.LatLng(43.451883, -80.495026);
     var request = {
         origin: start,
@@ -199,9 +226,12 @@ function getNavRoutes(annotationPosition,conn,infowindow) {
             var polygon = shell.buffer(navFrame);
 
             var navFrameCoor = [];
-            for (var latlng in polygon._shell._points._coordinates){
-                navFrameCoor.push([polygon._shell._points._coordinates[latlng].y,polygon._shell._points._coordinates[latlng].x]);
+            for (var latlng in polygon._shell._points._coordinates) {
+                navFrameCoor.push([polygon._shell._points._coordinates[latlng].y, polygon._shell._points._coordinates[latlng].x]);
             }
+
+            //COMMENT: the commented-out section is meant to send the navigation polygon to the server
+
             //creating navigation frame to receive 3D tile data; push to later date
             // var messageType = "navigationFrame";
             // var messageContent = {geometry:{type:"Polygon",coordinates:[navFrameCoor]}};
@@ -211,7 +241,7 @@ function getNavRoutes(annotationPosition,conn,infowindow) {
             // if (!sent) {
             //     appendLog("<div><b>" + '\xa0\xa0' + "Message not sent.</b></div>");
             // }
-            
+
             var oLanLng = [];
             var oCoordinates;
             oCoordinates = polygon._shell._points._coordinates[0];
@@ -227,13 +257,16 @@ function getNavRoutes(annotationPosition,conn,infowindow) {
             });
             infowindow.close(gMaps);
 
+            //COMMENT: declaring infoWindow outside of listener makes sure that there is only 1 
+            //infowindow in the navigation polygon; inside declaration allows multiple windows 
+
             // var infoWindow = new google.maps.InfoWindow();
             google.maps.event.addListener(routePolygon, 'click', function (event) {
                 var infoWindow = new google.maps.InfoWindow();
-                var contentString = '<b>Point Coordinate on Route:</b><br>Lat: ' + 
-                precisionRound(event.latLng.lat(),6) +
-                '<br>Lng: ' + precisionRound(event.latLng.lng(),6) + '<br/>' +
-                '<button id="deleteButton" onclick="deleteRoute(routePolygon);">Delete</button>';
+                var contentString = '<b>Point Coordinate on Route:</b><br>Lat: ' +
+                    precisionRound(event.latLng.lat(), 6) +
+                    '<br>Lng: ' + precisionRound(event.latLng.lng(), 6) + '<br/>' +
+                    '<button id="deleteButton" onclick="deleteRoute(routePolygon);">Delete</button>';
 
                 infoWindow.setContent(contentString);
                 infoWindow.setPosition(event.latLng);
@@ -243,19 +276,22 @@ function getNavRoutes(annotationPosition,conn,infowindow) {
     });
 }
 
-function deleteRoute(routePolygon){
-routePolygon.setMap(null);
+//COMMENT: deletes the navigation polygon
+function deleteRoute(routePolygon) {
+    routePolygon.setMap(null);
 }
 
+//COMMENT: assists the generation of the navigation polygon
 var jsts2googleMaps = function (geometry) {
     var coordArray = geometry.getCoordinates();
     GMcoords = [];
     for (var i = 0; i < coordArray.length; i++) {
-      GMcoords.push(new google.maps.LatLng(coordArray[i].x, coordArray[i].y));
+        GMcoords.push(new google.maps.LatLng(coordArray[i].x, coordArray[i].y));
     }
     return GMcoords;
-  };
+};
 
+//COMMENT: assists the generation of the navigation polygon
 function googleMaps2JTS(boundaries) {
     var coordinates = [];
     var length = 0;
@@ -263,13 +299,15 @@ function googleMaps2JTS(boundaries) {
     else if (boundaries && boundaries.length) length = boundaries.length;
     for (var i = 0; i < length; i++) {
         if (boundaries.getLength) coordinates.push(new jsts.geom.Coordinate(
-        boundaries.getAt(i).lat(), boundaries.getAt(i).lng()));
+            boundaries.getAt(i).lat(), boundaries.getAt(i).lng()));
         else if (boundaries.length) coordinates.push(new jsts.geom.Coordinate(
-        boundaries[i].lat(), boundaries[i].lng()));
+            boundaries[i].lat(), boundaries[i].lng()));
     }
     return coordinates;
 }
 
+
+//COMMENT: leafInit() initiates the leaflet window
 function leafInit(conn) {
 
     var width = 600;
@@ -306,6 +344,7 @@ function leafInit(conn) {
     leafDraw(leafMaps, conn, blueIcon);
 }
 
+//COMMENT: leafDrawInit() initiates the drawing tools in the leaflet window
 function leafDrawInit(leafMaps, blueIcon) {
     // define toolbar and polygon options, adn initialize
     var options = {
@@ -348,6 +387,7 @@ function leafDrawInit(leafMaps, blueIcon) {
 
 var selectionToggle = false;
 
+//COMMENT: leafDraw() sets appearance of the drawn annotations, and actions for when annotations changes
 function leafDraw(leafMaps, conn, blueIcon) {
 
     var polygonStyle = {
@@ -377,6 +417,7 @@ function leafDraw(leafMaps, conn, blueIcon) {
         }
     });
 
+    //COMMENT: pm.create listner packages annotation in geojson format and send to server 
     leafMaps.on('pm:create', function (e) {
         var geometryType;
         var pixCoordinates;
@@ -393,20 +434,24 @@ function leafDraw(leafMaps, conn, blueIcon) {
         }
         var messageContent = createGEOJSON(geometryType, pixCoordinates, annotationType);
         var messageType = "annotationStore";
-        message4Server = JSON.stringify({messagetype:messageType,messagecontent:messageContent});
+        message4Server = JSON.stringify({
+            messagetype: messageType,
+            messagecontent: messageContent
+        });
 
         var sent = toServer(message4Server, conn);
         if (!sent) {
             appendLog("<div><b>" + '\xa0\xa0' + "Message not sent.</b></div>");
         }
 
+        //COMMENT: event listner removes the hand-drawn annotation,
+        //because the server respond back with an identical copy to all clients including the client sending the message
         conn.addEventListener('message', function (evt) {
             var msgServer = JSON.parse(evt.data);
-            //add in if msgdisplay only
             if (!msgServer) {
-                // It doesn't exist, do nothing
+                //COMMENT: It doesn't exist, do nothing
             } else {
-                if(msgServer.msgTypeFromServer=="msgDisplay"){
+                if (msgServer.msgTypeFromServer == "msgDisplay") {
                     leafMaps.removeLayer(e.layer);
                     this.removeEventListener('message', arguments.callee, false);
                 }
@@ -416,6 +461,7 @@ function leafDraw(leafMaps, conn, blueIcon) {
 
     });
 
+    //COMMENT: parse the JSON message from server for the leaflet window 
     conn.addEventListener('message', function (event) {
         var msgServer = JSON.parse(event.data);
         if (!msgServer) {
@@ -425,7 +471,7 @@ function leafDraw(leafMaps, conn, blueIcon) {
                 case 'msgDisplay':
                     if (msgServer.features.properties.annotationStatus == "no error") {
                         var swapCoordinates = msgServer.features.geometry.coordinates;
-        
+
                         if (msgServer.features.geometry.type == "Point") {
                             msgServer.features.geometry.coordinates = msgServer.features.properties.pixelCoordinates.Vertex1Array;
                             msgServer.features.properties.pixelCoordinates.Vertex1Array = swapCoordinates;
@@ -440,21 +486,21 @@ function leafDraw(leafMaps, conn, blueIcon) {
                     break;
                 case 'msgRemove':
                     geojson.eachLayer(function (layer) {
-                        // layer.feature is the original geojson feature
                         if (layer.feature.properties.annotationID === msgServer.features.properties.annotationID) {
                             geojson.removeLayer(layer);
                         }
                     });
                     break;
                 default:
-                //   console.log("ERR: message type not found");
-              }
+                    //   console.log("ERR: message type not found");
+            }
         }
     });
 
     geojson.on("click", onFeatureGroupClick);
 }
 
+//COMMENT: onFeatureGroupClick() changes color (highlight) for annotations in the leaflet window   
 function onFeatureGroupClick(e) {
     var group = e.target;
     var layer = e.layer;
@@ -486,6 +532,7 @@ function onFeatureGroupClick(e) {
     }
 }
 
+//COMMENT: helper function for the event lisnter when a message is received by the client
 function onEachFeature(feature, layer) {
 
     var annotationType = feature.properties.annotationType;
@@ -496,17 +543,21 @@ function onEachFeature(feature, layer) {
     layer.on('remove', function () {
         gMaps.data.forEach(function (feature) {
             if (feature.getProperty('annotationID') == featureUUID) {
-
-                //TODO: evaluate how to do marker sync on ws
-                // if (annotationType != "Point"){
-                    var messageType = "annotationRemove";
-                    var messageContent = {properties:{annotationID:featureUUID,annotationType:annotationType}};
-                    var message4Server = JSON.stringify({messagetype:messageType,messagecontent:messageContent});
-                    var sent = toServer(message4Server, conn);
-                    if (!sent) {
-                        appendLog("<div><b>" + '\xa0\xa0' + "Message not sent.</b></div>");
+                var messageType = "annotationRemove";
+                var messageContent = {
+                    properties: {
+                        annotationID: featureUUID,
+                        annotationType: annotationType
                     }
-                // }
+                };
+                var message4Server = JSON.stringify({
+                    messagetype: messageType,
+                    messagecontent: messageContent
+                });
+                var sent = toServer(message4Server, conn);
+                if (!sent) {
+                    appendLog("<div><b>" + '\xa0\xa0' + "Message not sent.</b></div>");
+                }
                 gMaps.data.remove(feature);
             }
         });
@@ -540,13 +591,13 @@ function onEachFeature(feature, layer) {
                     "; Longtitude: " + feature.properties.pixelCoordinates.Vertex1Array[0] + "</div>");
             } else if (feature.geometry.type == "Polygon") {
 
-                appendLog("<div>" + '\xa0\xa0' + 
-                "Annotation UUID: " + feature.properties.annotationID + ".</div>");
+                appendLog("<div>" + '\xa0\xa0' +
+                    "Annotation UUID: " + feature.properties.annotationID + ".</div>");
 
                 for (i = 0; i < (feature.properties.pixelCoordinates.Vertex3Array[0]).length - 1; i++) {
-                    var y=i+1;
-                    appendLog("<div>" + '\xa0\xa0' + 
-                        "> Polygon corner " +y+ "<--> Latitude: " + feature.properties.pixelCoordinates.Vertex3Array[0][i][1] +
+                    var y = i + 1;
+                    appendLog("<div>" + '\xa0\xa0' +
+                        "> Polygon corner " + y + "<--> Latitude: " + feature.properties.pixelCoordinates.Vertex3Array[0][i][1] +
                         "; Longtitude: " + feature.properties.pixelCoordinates.Vertex3Array[0][i][0] + "</div>");
                 }
 
@@ -600,6 +651,8 @@ function createGEOJSON(geometryType, pixCoordinates, annotationType) {
     return annotation;
 }
 
+
+//COMMENT: creates the textbox under the leaflet window
 function appendLog(message) {
     var d = document.getElementById('log');
     var doScroll = d.scrollTop == d.scrollHeight - d.clientHeight;
@@ -618,4 +671,4 @@ function stateChange(leafMaps, newState) {
 function precisionRound(number, precision) {
     var factor = Math.pow(10, precision);
     return Math.round(number * factor) / factor;
-  }
+}

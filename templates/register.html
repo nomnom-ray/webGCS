@@ -15,7 +15,7 @@
 <body>
 
 	<div class="w3-container">
-		<div class="mobileCover w3-xlarge">
+		<div class="mobileCover w3-large">
 			Sorry, we are still working on mobile support.
 			<img class="coverCat" src="/templates/mobileCoverCat.png" alt="coverCat">
 		</div>
@@ -33,11 +33,18 @@
 
 	<div class="fade" onClick="lightbox_close();"></div>
 
+
 	<div class="limiter">
 		<div class="container-login100">
 			<div class="wrap-login100 p-t-50 p-b-90">
+
+				<div style="font-family:sans-serif; color:#403866; padding:0 0px 26px 0px; text-align:justify; line-height:1.2; font-size:18px;">
+					An autonomous vehicle may auto-navigate close to its destination, but there is not enough data about the destination
+					for the vehicle to understand exactly where to take the passenger.
+				</div>
+
 				<button class="Video-btn m-b-34" onclick="lightbox_open();">
-					Watch What Cliewen Does &nbsp
+					Watch How Cliewen Solves This &nbsp
 					<i class="fa fa-play-circle-o" style="font-size:42px;color:red"></i>
 				</button>
 
@@ -83,11 +90,27 @@
 			lightBoxVideo.pause();
 		}
 
+		window.addEventListener("orientationchange", function () {
+			switch (window.orientation) {
+				case -90 || 90:
+					document.getElementsByClassName('coverCat')[0].style.display = 'none';
+					break;
+				default:
+					document.getElementsByClassName('coverCat')[0].style.display = 'block';
+					break;
+			}
+		});
+
 		function mobileWarning() {
-			if (window.innerWidth < 600) {
+			if (window.innerWidth < 700 || window.innerHeight < 700) {
 				window.scrollTo(0, 0);
 				document.getElementsByClassName('mobileCover')[0].style.display = 'block';
 				document.getElementsByClassName('fade')[0].style.display = 'block';
+
+				if (window.innerWidth > window.innerHeight) {
+					document.getElementsByClassName('coverCat')[0].style.display = 'none';
+				}
+
 				return false;
 			}
 			return true;
