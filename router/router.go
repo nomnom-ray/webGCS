@@ -31,7 +31,7 @@ func RedirectToHTTPSDev(w http.ResponseWriter, r *http.Request) {
 }
 
 func RedirectToHTTPS(w http.ResponseWriter, r *http.Request) {
-	http.Redirect(w, r, "https://www.cliewen.com:81"+r.RequestURI, http.StatusMovedPermanently)
+	http.Redirect(w, r, "https://www.cliewen.com"+r.RequestURI, http.StatusMovedPermanently)
 }
 
 func indexGetHandler(w http.ResponseWriter, r *http.Request) {

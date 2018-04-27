@@ -42,7 +42,7 @@ func main() {
 		log.Printf("serving HTTP on port :80")
 		log.Printf("serving HTTPS on port :81")
 		go http.ListenAndServe(":80", http.HandlerFunc(router.RedirectToHTTPS))
-		go log.Fatal(http.ListenAndServeTLS(":81", "cert.pem", "key.pem", r))
+		go log.Fatal(http.ListenAndServeTLS(":443", "cert.pem", "key.pem", r))
 	}
 
 	//web client to get vectors; costs money and slow;
