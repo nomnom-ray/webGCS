@@ -13,6 +13,9 @@ import (
 
 func main() {
 
+	//COMMENT: change between localhost and server IP for dev vs. production
+	var deployFlag = true
+
 	models.InitRedis()
 	tile := models.InitTiles()
 
@@ -30,10 +33,17 @@ func main() {
 
 	http.Handle("/", r) //use the mux router as the default handler
 
-	// log.Printf("serving on port :8080")
-	// log.Fatal(http.ListenAndServe(":8080", r))
-	log.Printf("serving on port :80")
-	log.Fatal(http.ListenAndServe(":80", r))
+	if !deployFlag {
+		log.Printf("serving HTTP on port :8080")
+		log.Printf("serving HTTPS on port :8081")
+		go http.ListenAndServe(":8080", http.HandlerFunc(router.RedirectToHTTPSDev))
+		go log.Fatal(http.ListenAndServeTLS(":8081", "cert.pem", "key.pem", r))
+	} else {
+		log.Printf("serving HTTP on port :80")
+		log.Printf("serving HTTPS on port :81")
+		go http.ListenAndServe(":80", http.HandlerFunc(router.RedirectToHTTPS))
+		go log.Fatal(http.ListenAndServeTLS(":81", "cert.pem", "key.pem", r))
+	}
 
 	//web client to get vectors; costs money and slow;
 	//client will not run as long as resultRawModel.csv in folder

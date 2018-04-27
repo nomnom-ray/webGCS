@@ -14,7 +14,7 @@ func LoadRoutes(h *server.Hub) *mux.Router {
 	r := mux.NewRouter()
 
 	r.HandleFunc("/", server.AuthRequired(indexGetHandler))
-	r.HandleFunc("/ws", server.AuthRequired(h.ServeHTTP))
+	r.HandleFunc("/wss", server.AuthRequired(h.ServeHTTP))
 
 	r.HandleFunc("/register", registerGetHandler).Methods("GET")
 	r.HandleFunc("/register", registerPostHandler).Methods("POST")
@@ -24,6 +24,14 @@ func LoadRoutes(h *server.Hub) *mux.Router {
 	r.PathPrefix("/templates/").Handler(http.StripPrefix("/templates/", fs)) //tell routor to use path with static prefix
 
 	return r
+}
+
+func RedirectToHTTPSDev(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, "https://127.0.0.1:8081"+r.RequestURI, http.StatusMovedPermanently)
+}
+
+func RedirectToHTTPS(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, "https://www.cliewen.com:81"+r.RequestURI, http.StatusMovedPermanently)
 }
 
 func indexGetHandler(w http.ResponseWriter, r *http.Request) {

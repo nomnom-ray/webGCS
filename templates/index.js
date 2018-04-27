@@ -6,6 +6,9 @@ var directionsService;
 
 var infowindow;
 
+//COMMENT: change between localhost and server IP for dev vs. production
+var deployFlag = true;
+
 function initMap() {
 
     //COMMENT: define a new google maps window, and set properties displayed on the map
@@ -148,8 +151,17 @@ function initMap() {
 
         appendLog("<div><b>" + '\xa0\xa0' + "> The sync is slow due to the use of a free slow server.</b></div>");
 
-        // conn = new WebSocket("ws://localhost:8080/ws");
-        conn = new WebSocket("ws://" + window.location.hostname + "/ws");
+    if (deployFlag == false){
+        conn = new WebSocket("wss://127.0.0.1:8081/wss");
+    }else{
+    conn = new WebSocket("wss://" + window.location.hostname + "/wss");
+    }
+
+        // if (deployFlag == false){
+        //     conn = new WebSocket("ws://127.0.0.1:8080/ws");
+        // }else{
+        // conn = new WebSocket("ws://" + window.location.hostname + "/ws");
+        // }
 
         //COMMENT: conn event listener executes requests from the server for the Google Maps window 
         conn.addEventListener('message', function (e) {

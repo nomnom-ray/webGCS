@@ -31,7 +31,7 @@ body {
   top: 0px;
   width: 600px;
   height: 600px;
-  background: black;
+  background: rgba(255,0,0,0.0);
 }
 
 .leaflet-edge {
